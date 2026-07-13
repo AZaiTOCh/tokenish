@@ -108,27 +108,44 @@ def baseline_prompt(human_prompt: str, raw_document_text: str) -> str:
 
 
 def wants_instruction_following(human_prompt: str, has_attachment: bool) -> bool:
-    """User wants the model to follow an attachment, not invent a new answer."""
+    """True only when the user wants the model to *execute* attachment instructions."""
     if not has_attachment:
         return False
-    p = (human_prompt or "").strip()
-    if len(p) < 120:
-        return True
-    lower = p.lower()
-    cues = (
-        "follow",
-        "attached",
-        "attachment",
-        "instruction",
-        "as written",
-        "per the",
-        "in the document",
-        "in the file",
-        "assess this",
-        "evaluate this",
-        "review this",
+    lower = (human_prompt or "").strip().lower()
+    if not lower:
+        return False
+
+    # Analysis / review tasks must NOT lock follow-mode (need ITS + dedupe).
+    analyze_cues = (
+        "assess",
+        "analyze",
+        "analyse",
+        "summarize",
+        "summarise",
+        "review",
+        "evaluate",
+        "critique",
+        "explain",
+        "what does",
+        "tell me about",
     )
-    return any(c in lower for c in cues)
+    if any(c in lower for c in analyze_cues):
+        return False
+
+    execute_cues = (
+        "follow the instruction",
+        "follow instructions",
+        "follow the attached",
+        "execute the",
+        "as written",
+        "per the document",
+        "per the file",
+        "do exactly what",
+        "carry out the",
+        "run the benchmark",
+        "obey the",
+    )
+    return any(c in lower for c in execute_cues)
 
 
 def instruction_follow_envelope(
