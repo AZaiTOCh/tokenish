@@ -1,4 +1,4 @@
-# Tokenish
+# tokenish
 
 Open-source **token-saver** platform: a simple desktop chat UI whose every prompt and attachment runs through a **Split-Execution Optimizer Engine**, then dispatches to the model you select (local Ollama or cloud APIs).
 
