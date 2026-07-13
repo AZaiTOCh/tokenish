@@ -13,6 +13,7 @@ from tokenish_engine.compile import (
 from tokenish_engine.compile.format_rewrite import maybe_tabular_cheaper
 from tokenish_engine.compile.tokenizer_gate import apply_if_cheaper, reject_char_shorthand
 from tokenish_engine.compress import compress_context, maybe_hi0_json_block
+from tokenish_engine.compress.dedupe import dedupe_document_sections
 from tokenish_engine.config import settings
 from tokenish_engine.ingest import IngestResult, ingest_file, merge_ingests
 from tokenish_engine.meters import compute_tokex
@@ -63,6 +64,13 @@ def optimize(
     has_attachment = bool(raw_doc.strip() or image_b64)
     follow_mode = wants_instruction_following(prompt, has_attachment and bool(raw_doc.strip()))
 
+    # Lossless duplicate-section removal (PAGE BREAK repeats, pasted clones).
+    if raw_doc:
+        deduped, dropped_n, dedupe_stage = dedupe_document_sections(raw_doc)
+        if dropped_n > 0:
+            raw_doc = deduped
+            stages.append(dedupe_stage)
+
     if raw_doc and not follow_mode and (data_type == "json" or stripped.startswith("[")):
         rewritten, fmt_applied = maybe_tabular_cheaper(raw_doc)
         if fmt_applied:
@@ -70,18 +78,19 @@ def optimize(
             data_type = "csv"
             stages.append("format_csv")
 
-    if use_headroom and not follow_mode and data_type in {"log", "txt", "csv", "pdf"} and len(raw_doc) > 4000:
+    # Headroom for assess/analyze paths (and large text even if borderline follow).
+    if use_headroom and not follow_mode and data_type in {"log", "txt", "csv", "pdf", "text", "md"} and len(raw_doc) > 2000:
         compressed, applied, stage = compress_context(raw_doc)
         if applied:
             raw_doc = compressed
             stages.append(stage)
 
-    if use_its and raw_doc:
+    if use_its and raw_doc and not follow_mode:
         gated = gate_document(
             prompt,
             raw_doc,
             enabled=True,
-            kiosk_mode=use_kiosk if not follow_mode else False,
+            kiosk_mode=use_kiosk,
         )
         its_meta = {
             "dropped": gated.dropped,
@@ -90,13 +99,15 @@ def optimize(
             "labels": gated.labels,
             "kiosk_blocked": gated.kiosk_blocked,
         }
-        if gated.kiosk_blocked and not follow_mode:
+        if gated.kiosk_blocked:
             kiosk_blocked = True
             raw_doc = ""
             stages.append("its_kiosk_block")
         elif gated.dropped > 0 and gated.text != raw_doc:
             raw_doc = gated.text
             stages.append(f"its_drop_{gated.dropped}")
+            if any(isinstance(d, dict) and d.get("faiss_prefilter") for d in (gated.details or [])):
+                stages.append("faiss_mib")
 
     px_applied = False
     px_surcharge = 0
