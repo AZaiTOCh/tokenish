@@ -1,20 +1,21 @@
 """
 Provider dispatch + Argus-style fallback chain.
 
-Order when preferred provider fails / missing key:
-  ChatGPT (gpt-4o) → Gemini 3.5 → OpenRouter free roster
+Order: Gemini (primary + alt models) → OpenRouter
+OpenAI / Anthropic removed from the product surface.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, AsyncIterator
 
 import httpx
 
-from tokenish_engine.config import gemini_key, openai_key, settings
+from tokenish_engine.config import gemini_key, groq_key, openrouter_key, settings
 from tokenish_engine.dispatch.argus import run_preflight
 from tokenish_engine.models import ProviderStatus
 
@@ -45,7 +46,6 @@ def _load_fallbacks() -> list[tuple[str, str]]:
     except Exception:
         pass
     return [
-        ("openai", settings.openai_primary_model),
         ("gemini", settings.gemini_model),
         ("openrouter", settings.openrouter_free_model),
     ]
@@ -76,47 +76,45 @@ def resolve_provider(provider: str | None, model: str | None, target_engine: str
     if "openrouter" in blob or ":free" in blob:
         return "openrouter"
     if any(x in blob for x in ("gpt", "openai", "o1", "o3", "o4", "chatgpt")):
-        if _provider_active("openai"):
-            return "openai"
+        # OpenAI removed from UI; map to auto fallback chain.
+        pass
     if "groq" in blob or "llama-3" in blob:
         if _provider_active("groq"):
             return "groq"
     active = _first_active_fallback()
     if active:
         return active[0]
-    if openai_key():
-        return "openai"
     if gemini_key():
         return "gemini"
-    if settings.openrouter_api_key:
+    if openrouter_key():
         return "openrouter"
     return "gemini"
 
 
 def resolve_model(provider: str, model: str | None, target_engine: str) -> str:
     m = (model or target_engine or "").strip()
-    if provider == "openai":
-        return m if m and _provider_active("openai") else settings.openai_primary_model
     if provider == "gemini":
-        return settings.gemini_model if not m or "gpt" in m.lower() else m
+        return settings.gemini_model  # always gemini-3.5-flash
     if provider == "openrouter":
-        return settings.openrouter_free_model if not m or "gpt" in m.lower() else m
-    return m or target_engine or settings.openai_primary_model
+        return settings.openrouter_free_model if not m or "gpt" in m.lower() or m.startswith("gemini") else m
+    if provider == "openai":
+        return settings.openai_primary_model
+    return m or target_engine or settings.gemini_model
 
 
 def _provider_has_key(name: str) -> bool:
     if name == "groq":
-        return bool(settings.groq_api_key)
+        return bool(groq_key())
     if name == "gemini":
         return bool(gemini_key())
     if name == "openrouter":
-        return bool(settings.openrouter_api_key)
+        return bool(openrouter_key())
     if name == "perplexity":
-        return bool(settings.perplexity_api_key)
+        return bool(settings.perplexity_api_key or os.environ.get("PERPLEXITY_API_KEY"))
     if name == "openai":
-        return bool(openai_key())
+        return False  # removed from product surface
     if name == "anthropic":
-        return bool(settings.anthropic_api_key)
+        return False  # removed from product surface
     return False
 
 
@@ -181,12 +179,35 @@ def _user_content(envelope: str, image_b64: str | None, image_mime: str | None) 
 
 
 def _fallback_chain(provider: str, model: str) -> list[tuple[str, str]]:
+    # Force Gemini requests onto gemini-3.5-flash only (never other Gemini IDs).
+    if provider == "gemini" or (model or "").startswith("gemini"):
+        provider, model = "gemini", settings.gemini_model
     chain: list[tuple[str, str]] = [(provider, model)]
     for prov, mdl in _load_fallbacks():
+        if prov == "gemini":
+            mdl = settings.gemini_model
         if (prov, mdl) not in chain:
             chain.append((prov, mdl))
-    ready = [(p, m) for p, m in chain if _provider_active(p)]
-    return ready or chain
+    if openrouter_key() and ("openrouter", settings.openrouter_free_model) not in chain:
+        chain.append(("openrouter", settings.openrouter_free_model))
+    out: list[tuple[str, str]] = []
+    for p, m in chain:
+        if p == "gemini":
+            if gemini_key():
+                out.append(("gemini", settings.gemini_model))
+            continue
+        if not _provider_has_key(p):
+            continue
+        if _provider_active(p):
+            out.append((p, m))
+    # de-dupe preserving order
+    seen: set[tuple[str, str]] = set()
+    uniq: list[tuple[str, str]] = []
+    for item in out:
+        if item not in seen:
+            seen.add(item)
+            uniq.append(item)
+    return uniq or [(provider, model)]
 
 
 async def chat_complete(
@@ -258,8 +279,8 @@ async def chat_stream(
                     model=mdl,
                     envelope=envelope,
                     history=history,
-                    image_b64=image_b64 if prov == "openai" else None,
-                    image_mime=image_mime if prov == "openai" else None,
+                    image_b64=image_b64 if prov in {"openai", "openrouter"} else None,
+                    image_mime=image_mime if prov in {"openai", "openrouter"} else None,
                     extra_headers=_extra_headers(prov),
                 ):
                     if session and session.provider is None:
@@ -314,17 +335,13 @@ def _base_url(provider: str) -> str:
 
 def _api_key(provider: str) -> str | None:
     if provider == "groq":
-        return settings.groq_api_key
+        return groq_key()
     if provider == "openrouter":
-        return settings.openrouter_api_key
+        return openrouter_key()
     if provider == "perplexity":
-        return settings.perplexity_api_key
-    if provider == "openai":
-        return openai_key()
+        return settings.perplexity_api_key or os.environ.get("PERPLEXITY_API_KEY")
     if provider == "gemini":
         return gemini_key()
-    if provider == "anthropic":
-        return settings.anthropic_api_key
     return None
 
 
@@ -358,8 +375,8 @@ async def _dispatch_once(
             model=model,
             envelope=envelope,
             history=history,
-            image_b64=image_b64 if provider == "openai" else None,
-            image_mime=image_mime if provider == "openai" else None,
+            image_b64=image_b64 if provider in {"openai", "openrouter"} else None,
+            image_mime=image_mime if provider in {"openai", "openrouter"} else None,
             extra_headers=_extra_headers(provider),
         )
     raise RuntimeError(f"unknown provider: {provider}")
@@ -502,9 +519,9 @@ async def _gemini_chat(
                 json=body,
             )
 
-    r = await _call(model)
-    if r.status_code == 404 and model != settings.gemini_model_fallback:
-        r = await _call(settings.gemini_model_fallback)
+    r = await _call(settings.gemini_model if model.startswith("gemini") else model)
+    # Never fall back to other Gemini versions — only surface the HTTP error
+    # so the outer chain can try OpenRouter.
     if r.status_code >= 400:
         raise RuntimeError(f"gemini HTTP {r.status_code}: {r.text[:240]}")
     data = r.json()

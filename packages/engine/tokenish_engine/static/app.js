@@ -1,14 +1,19 @@
-
 const messagesEl = document.getElementById("messages");
 const errorEl = document.getElementById("error");
 const promptEl = document.getElementById("prompt");
 const fileInput = document.getElementById("fileInput");
 const attachmentsEl = document.getElementById("attachments");
 const providersEl = document.getElementById("providers");
-const modelsList = document.getElementById("models");
+const modelSelect = document.getElementById("model");
+const providerSelect = document.getElementById("provider");
 
 let history = [];
 let files = [];
+
+const DEFAULT_MODELS = [
+  "gemini-3.5-flash",
+  "openrouter/free",
+];
 
 function showError(msg) {
   errorEl.hidden = !msg;
@@ -60,35 +65,58 @@ function addBubble(role, content, meta = {}) {
   return div;
 }
 
+function fillModels(models, preferred) {
+  const current = modelSelect.value;
+  const filtered = (models || []).filter(
+    (m) => m === "gemini-3.5-flash" || m.startsWith("openrouter") || !String(m).startsWith("gemini")
+  );
+  const uniq = [...new Set([...(filtered || []), ...DEFAULT_MODELS].filter(Boolean))];
+  modelSelect.innerHTML = uniq.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
+  let pick = preferred || current || "gemini-3.5-flash";
+  if (String(pick).startsWith("gemini") && pick !== "gemini-3.5-flash") {
+    pick = "gemini-3.5-flash";
+  }
+  if ([...modelSelect.options].some((o) => o.value === pick)) {
+    modelSelect.value = pick;
+  } else if (modelSelect.options.length) {
+    modelSelect.selectedIndex = 0;
+  }
+}
+
+async function saveKeys(payload) {
+  const res = await fetch("/settings/keys", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || (await res.text()) || "save failed");
+  return data;
+}
+
 async function loadProviders() {
   try {
     const res = await fetch("/providers");
     const data = await res.json();
     providersEl.innerHTML = "";
-    const modelSet = new Set();
+    const modelSet = [];
     for (const p of data.providers || []) {
+      if (["openai", "anthropic"].includes(p.name)) continue;
       const row = document.createElement("div");
       row.className = "provider";
-      row.innerHTML = `<span><span class="dot ${p.available ? "ok" : "bad"}"></span>${p.name}</span><span style="color:var(--muted);font-size:0.75rem">${p.detail}</span>`;
+      row.innerHTML = `<span><span class="dot ${p.available ? "ok" : "bad"}"></span>${p.name}</span><span style="color:var(--muted);font-size:0.75rem">${escapeHtml(p.detail || "")}</span>`;
       providersEl.appendChild(row);
-      (p.models || []).forEach((m) => modelSet.add(m));
+      (p.models || []).forEach((m) => modelSet.push(m));
     }
-    modelsList.innerHTML = [...modelSet].map((m) => `<option value="${m}"></option>`).join("");
     const pref = data.preferred;
-    if (pref?.provider && pref?.model) {
-      document.getElementById("provider").value = "auto";
-      document.getElementById("model").value = pref.model;
-    }
-    const oai = (data.providers || []).find((p) => p.name === "openai");
-    if (oai && !oai.available && /quota|429/i.test(oai.detail || "")) {
-      showError("ChatGPT quota exceeded — using Gemini (attach files for token savings)");
-    }
-    const orp = (data.providers || []).find((p) => p.name === "openrouter");
-    if (orp && !orp.available && /402|credit/i.test(orp.detail || "")) {
-      showError("OpenRouter needs credits — using Gemini only");
+    fillModels(modelSet, pref?.model);
+    if (pref?.provider && [...providerSelect.options].some((o) => o.value === pref.provider)) {
+      // keep auto as default for resilience
+      providerSelect.value = "auto";
     }
   } catch {
-    showError("engine offline");
+    showError("engine offline — restart tokenish");
+    fillModels(DEFAULT_MODELS);
   }
 }
 
@@ -102,14 +130,13 @@ async function send() {
 
   const fd = new FormData();
   fd.append("prompt", prompt);
-  const model = document.getElementById("model").value;
-  const provider = document.getElementById("provider").value;
+  const model = modelSelect.value;
+  const provider = providerSelect.value;
   fd.append("target_engine", model);
   fd.append("model", model);
   fd.append("provider", provider);
   fd.append("history", JSON.stringify(history.slice(0, -1)));
   fd.append("stream", "true");
-  fd.append("show_envelope", "false");
   const pageRange = document.getElementById("pageRange").value.trim();
   if (pageRange) fd.append("page_range", pageRange);
   for (const f of files) fd.append("files", f);
@@ -137,6 +164,13 @@ async function send() {
         if (evt.type === "meta") {
           meta = evt;
           renderTokex(evt.tokex || evt.meter);
+          if (Array.isArray(evt.stages) && evt.stages.length) {
+            const stageLine = evt.stages.filter((s) => s && s !== "ingest" && s !== "lcs").slice(-6).join(" → ");
+            if (stageLine) {
+              // keep quiet unless useful
+              meta.stagesNote = stageLine;
+            }
+          }
         } else if (evt.type === "routing") {
           meta.provider = evt.provider;
           meta.model = evt.model;
@@ -148,18 +182,19 @@ async function send() {
           let route = meta.provider ? `${meta.provider}/${meta.model}` : "";
           if (meta.fallback_used) {
             route += meta.fallback_reason
-              ? ` (fallback: ${meta.fallback_reason.replace(/^openai:\s*/i, "ChatGPT ")})`
+              ? ` (fallback: ${meta.fallback_reason})`
               : " (fallback)";
           }
           bubble.innerHTML = `<div class="meta">assistant${route ? ` · ${route}` : ""}${
             t ? ` · saved ${t.saved_tokex ?? t.saved_tokens} (${t.saved_pct}%)` : ""
-          }</div>${escapeHtml(assistant)}`;
+          }${meta.stagesNote ? ` · ${escapeHtml(meta.stagesNote)}` : ""}</div>${escapeHtml(assistant)}`;
           messagesEl.scrollTop = messagesEl.scrollHeight;
         } else if (evt.type === "error") {
           throw new Error(evt.error || "chat failed");
         }
       }
     }
+    if (!assistant) throw new Error("empty reply — try another model or OpenRouter key");
     history.push({ role: "assistant", content: assistant });
     files = [];
     fileInput.value = "";
@@ -188,49 +223,57 @@ promptEl.addEventListener("keydown", (e) => {
   }
 });
 
-addBubble("assistant", "attach a pdf, docx, xlsx, csv, or image. tokenish optimizes every send automatically.");
-
 async function maybeShowKeyWizard() {
   const modal = document.getElementById("keyModal");
   if (!modal) return;
   try {
     const res = await fetch("/settings/keys");
     const data = await res.json();
-    if (data.openai || data.gemini) return;
+    if (data.gemini || data.openrouter) return;
     modal.hidden = false;
   } catch {
-    /* ignore */
+    modal.hidden = false;
+  }
+}
+
+async function handleKeySave(fromModal) {
+  const gemini = (fromModal
+    ? document.getElementById("keyGemini")
+    : document.getElementById("sideKeyGemini")
+  ).value.trim();
+  const openrouter = (fromModal
+    ? document.getElementById("keyOpenRouter")
+    : document.getElementById("sideKeyOpenRouter")
+  ).value.trim();
+  const msg = document.getElementById("keyModalMsg");
+  if (!gemini && !openrouter) {
+    showError("paste a Gemini or OpenRouter key");
+    if (msg) { msg.hidden = false; msg.textContent = "paste a Gemini or OpenRouter key"; }
+    return;
+  }
+  try {
+    const data = await saveKeys({
+      GEMINI_API_KEY: gemini,
+      OPENROUTER_API_KEY: openrouter,
+    });
+    if (fromModal) document.getElementById("keyModal").hidden = true;
+    if (msg) msg.hidden = true;
+    showError("");
+    addBubble("assistant", `keys saved (${(data.saved || []).join(", ") || "ok"}). try sending again.`);
+    await loadProviders();
+  } catch (e) {
+    showError(e.message || String(e));
+    if (msg) { msg.hidden = false; msg.textContent = e.message || String(e); }
   }
 }
 
 document.getElementById("keySkip")?.addEventListener("click", () => {
   document.getElementById("keyModal").hidden = true;
 });
+document.getElementById("keySave")?.addEventListener("click", () => handleKeySave(true));
+document.getElementById("sideKeySave")?.addEventListener("click", () => handleKeySave(false));
 
-document.getElementById("keySave")?.addEventListener("click", async () => {
-  const payload = {
-    GEMINI_API_KEY: document.getElementById("keyGemini").value.trim(),
-    GPT_TOKENISH: document.getElementById("keyOpenAI").value.trim(),
-    OPENROUTER_API_KEY: document.getElementById("keyOpenRouter").value.trim(),
-  };
-  if (!payload.GEMINI_API_KEY && !payload.GPT_TOKENISH && !payload.OPENROUTER_API_KEY) {
-    showError("paste at least one API key");
-    return;
-  }
-  try {
-    const res = await fetch("/settings/keys", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    document.getElementById("keyModal").hidden = true;
-    showError("");
-    loadProviders();
-  } catch (e) {
-    showError(e.message || String(e));
-  }
-});
-
+addBubble("assistant", "attach a pdf, docx, xlsx, csv, or image. tokenish optimizes every send automatically.");
+fillModels(DEFAULT_MODELS);
 loadProviders();
 maybeShowKeyWizard();
