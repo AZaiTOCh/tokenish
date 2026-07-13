@@ -11,12 +11,14 @@
   },
   "openrouter_free_roster": {
     "verified_active": [
-      "openrouter/free",
       "google/gemma-4-31b-it:free",
+      "openai/gpt-oss-120b:free",
+      "openrouter/free",
       "meta-llama/llama-3.3-70b-instruct:free",
       "qwen/qwen3-coder:free"
     ],
-    "last_verified": "2026-07-13T15:16:41Z"
+    "last_verified": "2026-07-13T15:35:40Z",
+    "last_test_called": "2026-07-13T15:35:40Z"
   },
   "providers": {
     "gemini": {
@@ -24,7 +26,10 @@
       "models": [
         "gemini-3.5-flash"
       ],
-      "model_name": "gemini-3.5-flash"
+      "model_name": "gemini-3.5-flash",
+      "last_ping": "2026-07-13T15:35:38Z",
+      "latency_ms": 1693,
+      "error": "high demand (will retry alt models)"
     },
     "openrouter": {
       "is_active": true,
@@ -37,5 +42,5 @@
       "models": []
     }
   },
-  "last_updated": "2026-07-13T15:35:00Z"
+  "last_updated": "2026-07-13T15:35:40Z"
 }

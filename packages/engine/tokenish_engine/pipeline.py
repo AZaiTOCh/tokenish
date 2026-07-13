@@ -101,7 +101,21 @@ def optimize(
     px_applied = False
     px_surcharge = 0
     px_pointer = ""
-    if use_pxpipe and raw_doc and not image_b64 and not kiosk_blocked:
+    # Never pack text→image for follow-mode or text-like files. Pointer-only
+    # envelopes made models reply "I can't see the document/image".
+    skip_px = follow_mode or data_type in {
+        "txt",
+        "text",
+        "md",
+        "csv",
+        "json",
+        "docx",
+        "doc",
+        "log",
+        "pdf",
+        "excel_matrix",
+    }
+    if use_pxpipe and raw_doc and not image_b64 and not kiosk_blocked and not skip_px:
         pointer, pb64, pmime, px_applied = maybe_pack(
             raw_doc,
             model=model,
@@ -185,7 +199,14 @@ def optimize(
             )
 
         if px_applied and px_pointer:
-            candidates.append(("pxpipe_pointer", f"{clean}\n\n{px_pointer}"))
+            # Only allow pointer when full document text is still present (safety).
+            # Prefer text envelopes via pick_cheapest; pointer-only is last resort.
+            candidates.append(
+                (
+                    "pxpipe_with_text",
+                    f"{clean}\n\n{px_pointer}\n\n#D[{data_type}]\n{raw_doc}",
+                )
+            )
 
         stage_pick, envelope = pick_cheapest_envelope(candidates)
         stages.append(stage_pick)

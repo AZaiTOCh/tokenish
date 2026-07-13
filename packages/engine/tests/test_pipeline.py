@@ -130,7 +130,8 @@ def test_follow_attachment_picks_savings_path():
     )
     assert result.tokex.saved_tokex > 0
     assert result.tokex.tokex_this_run < result.tokex.total_tokex
-    assert "instruction_follow" in result.stages or "pxpipe_pointer" in result.stages or "bare" in result.stages
+    assert "instruction_follow" in result.stages or "bare" in result.stages or "minimal" in result.stages
+    assert "pxpipe" not in result.stages and "pxpipe_pointer" not in result.stages
 
 
 def test_follow_mode_skips_headroom():

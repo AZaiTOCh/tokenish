@@ -164,6 +164,13 @@ async function send() {
         if (evt.type === "meta") {
           meta = evt;
           renderTokex(evt.tokex || evt.meter);
+          if (Array.isArray(evt.stages) && evt.stages.length) {
+            const stageLine = evt.stages.filter((s) => s && s !== "ingest" && s !== "lcs").slice(-6).join(" → ");
+            if (stageLine) {
+              // keep quiet unless useful
+              meta.stagesNote = stageLine;
+            }
+          }
         } else if (evt.type === "routing") {
           meta.provider = evt.provider;
           meta.model = evt.model;
@@ -180,7 +187,7 @@ async function send() {
           }
           bubble.innerHTML = `<div class="meta">assistant${route ? ` · ${route}` : ""}${
             t ? ` · saved ${t.saved_tokex ?? t.saved_tokens} (${t.saved_pct}%)` : ""
-          }</div>${escapeHtml(assistant)}`;
+          }${meta.stagesNote ? ` · ${escapeHtml(meta.stagesNote)}` : ""}</div>${escapeHtml(assistant)}`;
           messagesEl.scrollTop = messagesEl.scrollHeight;
         } else if (evt.type === "error") {
           throw new Error(evt.error || "chat failed");

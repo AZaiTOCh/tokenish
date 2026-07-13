@@ -279,8 +279,8 @@ async def chat_stream(
                     model=mdl,
                     envelope=envelope,
                     history=history,
-                    image_b64=image_b64 if prov == "openai" else None,
-                    image_mime=image_mime if prov == "openai" else None,
+                    image_b64=image_b64 if prov in {"openai", "openrouter"} else None,
+                    image_mime=image_mime if prov in {"openai", "openrouter"} else None,
                     extra_headers=_extra_headers(prov),
                 ):
                     if session and session.provider is None:
@@ -375,8 +375,8 @@ async def _dispatch_once(
             model=model,
             envelope=envelope,
             history=history,
-            image_b64=image_b64 if provider == "openai" else None,
-            image_mime=image_mime if provider == "openai" else None,
+            image_b64=image_b64 if provider in {"openai", "openrouter"} else None,
+            image_mime=image_mime if provider in {"openai", "openrouter"} else None,
             extra_headers=_extra_headers(provider),
         )
     raise RuntimeError(f"unknown provider: {provider}")
