@@ -50,10 +50,14 @@ def optimize(
     ingested = merge_ingests(parts) if parts else IngestResult()
 
     raw_doc = ingested.raw_text or ""
-    image_b64 = ingested.image_b64
-    image_mime = ingested.image_mime
+    images = list(ingested.images or [])
+    if not images and ingested.image_b64:
+        images = [{"b64": ingested.image_b64, "mime": ingested.image_mime or "image/jpeg"}]
+    image_b64 = images[0]["b64"] if images else None
+    image_mime = images[0]["mime"] if images else None
     data_type = ingested.data_type or "text"
     original_doc = ingested.raw_text or ""
+    attachment_warning = (ingested.metadata or {}).get("warning")
 
     stripped = raw_doc.strip()
     if raw_doc and (data_type == "json" or stripped.startswith("{") or stripped.startswith("[")):
@@ -62,7 +66,7 @@ def optimize(
             raw_doc = packed
             stages.append("hi0")
 
-    has_attachment = bool(raw_doc.strip() or image_b64)
+    has_attachment = bool(raw_doc.strip() or images)
     follow_mode = wants_instruction_following(prompt, has_attachment and bool(raw_doc.strip()))
 
     # Lossless duplicate-section removal (PAGE BREAK repeats, pasted clones).
@@ -129,7 +133,7 @@ def optimize(
         "pdf",
         "excel_matrix",
     }
-    if use_pxpipe and raw_doc and not image_b64 and not kiosk_blocked and not skip_px:
+    if use_pxpipe and raw_doc and not images and not kiosk_blocked and not skip_px:
         pointer, pb64, pmime, px_applied = maybe_pack(
             raw_doc,
             model=model,
@@ -139,12 +143,13 @@ def optimize(
         if px_applied:
             px_pointer = pointer
             image_b64, image_mime = pb64, pmime
+            images = [{"b64": pb64, "mime": pmime}]
             px_surcharge = settings.pxpipe_image_tokens
             stages.append("pxpipe")
 
     nodes = compress_instructions(prompt, follow_attachment=follow_mode)
 
-    if not raw_doc and not image_b64 and count_tokens(prompt) < 32:
+    if not raw_doc and not images and count_tokens(prompt) < 32:
         envelope = prompt.strip()
         stages.append("passthrough_short")
         tokex = compute_tokex(
@@ -161,10 +166,12 @@ def optimize(
             data_type=data_type,
             image_b64=image_b64,
             image_mime=image_mime,
+            images=images,
             stages=stages,
             pxpipe_applied=False,
             its=its_meta,
             kiosk_blocked=kiosk_blocked,
+            attachment_warning=attachment_warning,
         )
 
     if kiosk_blocked:
@@ -175,7 +182,7 @@ def optimize(
             "Kiosk Mode: ITS skill scores fell below threshold. "
             "No low-relevance context was injected."
         )
-    elif raw_doc or image_b64:
+    elif raw_doc or images:
         candidates: list[tuple[str, str]] = []
         clean = nodes.get("clean_prompt") or prompt.strip()
 
@@ -246,6 +253,7 @@ def optimize(
         # Text path won; do not also send the packed image.
         image_b64 = None
         image_mime = None
+        images = []
         px_applied = False
         px_surcharge = 0
         stages.append("pxpipe_dropped")
@@ -258,6 +266,11 @@ def optimize(
                 envelope = baseline
             stages.append("verbatim_fallback")
 
+    vision_note = ""
+    if images and not px_applied:
+        vision_note = f" + vision_images({len(images)})"
+        stages.append(f"vision_images_{len(images)}")
+
     tokex = compute_tokex(
         baseline_text=baseline,
         optimized_text=envelope,
@@ -266,8 +279,10 @@ def optimize(
         fact_notes=[
             "TOTAL_TOKEX = tokens(naive prompt + raw attachment)",
             "TOKEX_THIS_RUN = tokens(optimized envelope)"
-            + (f" + pxpipe_image({px_surcharge})" if px_surcharge and px_applied else ""),
+            + (f" + pxpipe_image({px_surcharge})" if px_surcharge and px_applied else "")
+            + vision_note,
             "SAVED_TOKEX = max(0, TOTAL_TOKEX - TOKEX_THIS_RUN)",
+            *([attachment_warning] if attachment_warning else []),
         ],
     )
 
@@ -279,8 +294,10 @@ def optimize(
         data_type=data_type,
         image_b64=image_b64,
         image_mime=image_mime,
+        images=images,
         stages=stages,
         pxpipe_applied=px_applied,
         its=its_meta,
         kiosk_blocked=kiosk_blocked,
+        attachment_warning=attachment_warning,
     )

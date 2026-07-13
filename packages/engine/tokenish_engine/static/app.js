@@ -11,6 +11,9 @@ const threadListEl = document.getElementById("threadList");
 const STORE_KEY = "tokenish.threads.v2";
 const MUMBLZ_REV = "lowercase-titles-v1";
 const WELCOME = "Attach a pdf, docx, xlsx, csv, or image. tokenish optimizes every send automatically.";
+const MAX_VISION_IMAGES = 8;
+const MAX_ATTACH_FILES = 20;
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "bmp"]);
 
 const DEFAULT_MODELS = [
   "gemini-3.5-flash",
@@ -103,8 +106,101 @@ function showError(msg) {
   errorEl.textContent = msg || "";
 }
 
-function renderAttachments() {
-  attachmentsEl.innerHTML = files.map((f) => `<span class="chip">${escapeHtml(f.name)}</span>`).join("");
+function fileExt(name) {
+  const m = String(name || "").toLowerCase().match(/\.([a-z0-9]+)$/);
+  return m ? m[1] : "";
+}
+
+function isImageFile(f) {
+  if (!f) return false;
+  if (f.type && f.type.startsWith("image/")) return true;
+  return IMAGE_EXTS.has(fileExt(f.name));
+}
+
+function fileKey(f) {
+  return `${f.name}::${f.size}::${f.lastModified || 0}`;
+}
+
+function countImages(list) {
+  return (list || []).filter(isImageFile).length;
+}
+
+function tknshHtml() {
+  return `<div class="tknsh" aria-label="working"><span>t</span><span>k</span><span>n</span><span>s</span><span>h</span></div>`;
+}
+
+function renderAttachments({ staging = false, stagingCount = 0 } = {}) {
+  const chips = files
+    .map((f, i) => {
+      const kind = isImageFile(f) ? "image" : "file";
+      return (
+        `<span class="chip ready" data-idx="${i}" title="${escapeHtml(f.name)}">` +
+        `<span class="chip-kind">${kind}</span>` +
+        `<span class="chip-name">${escapeHtml(f.name)}</span>` +
+        `<button type="button" class="chip-x" aria-label="remove">×</button>` +
+        `</span>`
+      );
+    })
+    .join("");
+  const status = staging
+    ? `<span class="attach-status">${tknshHtml()}<span>reading ${stagingCount || ""} file${(stagingCount || 0) === 1 ? "" : "s"}…</span></span>`
+    : files.length
+      ? `<span class="attach-meta">${files.length} attached · ${countImages(files)} image${countImages(files) === 1 ? "" : "s"}</span>`
+      : "";
+  attachmentsEl.innerHTML = chips + status;
+  attachmentsEl.querySelectorAll(".chip-x").forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.closest(".chip")?.dataset?.idx);
+      if (!Number.isFinite(idx)) return;
+      files.splice(idx, 1);
+      renderAttachments();
+      showError("");
+    };
+  });
+}
+
+async function stageIncomingFiles(incoming) {
+  const list = Array.from(incoming || []);
+  if (!list.length) return;
+  showError("");
+  renderAttachments({ staging: true, stagingCount: list.length });
+
+  // Brief tknsh pulse while files are staged locally (same animation as chat).
+  await new Promise((r) => setTimeout(r, 280));
+
+  const seen = new Set(files.map(fileKey));
+  const next = [...files];
+  const skipped = [];
+  for (const f of list) {
+    const key = fileKey(f);
+    if (seen.has(key)) {
+      skipped.push(`${f.name} (already attached)`);
+      continue;
+    }
+    if (next.length >= MAX_ATTACH_FILES) {
+      skipped.push(`${f.name} (max ${MAX_ATTACH_FILES} files)`);
+      continue;
+    }
+    if (isImageFile(f) && countImages(next) >= MAX_VISION_IMAGES) {
+      skipped.push(`${f.name} (vision limit ${MAX_VISION_IMAGES} images)`);
+      continue;
+    }
+    // Touch-read so the browser surfaces large-file / permission errors early.
+    try {
+      await f.slice(0, 16).arrayBuffer();
+    } catch (err) {
+      skipped.push(`${f.name} (could not read)`);
+      continue;
+    }
+    seen.add(key);
+    next.push(f);
+  }
+  files = next;
+  renderAttachments();
+  if (skipped.length) {
+    showError(`could not attach all files: ${skipped.slice(0, 4).join("; ")}${skipped.length > 4 ? "…" : ""}`);
+  }
 }
 
 function escapeHtml(s) {
@@ -629,6 +725,11 @@ async function send() {
           accumulateTokex(thread, evt.tokex || evt.meter);
           renderTokexPanel(thread);
           saveStore();
+          if (evt.attachment_warning) showError(evt.attachment_warning);
+          else if (evt.images_sent != null && countImages(files) > 0) {
+            // Clear prior attach warnings once server confirms image count.
+            if (!evt.attachment_warning) showError("");
+          }
         } else if (evt.type === "delta") {
           if (!bubble) {
             loader.remove();
@@ -665,9 +766,10 @@ async function send() {
 }
 
 document.getElementById("attachBtn").onclick = () => fileInput.click();
-fileInput.onchange = () => {
-  files = Array.from(fileInput.files || []);
-  renderAttachments();
+fileInput.onchange = async () => {
+  const incoming = Array.from(fileInput.files || []);
+  fileInput.value = "";
+  await stageIncomingFiles(incoming);
 };
 document.getElementById("sendBtn").onclick = () => send();
 document.getElementById("newChat").onclick = () => createChat();

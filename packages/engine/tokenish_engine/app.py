@@ -220,6 +220,8 @@ async def chat_endpoint(
                 "kiosk_blocked": compiled.kiosk_blocked,
                 "attachment_chars": len(compiled.envelope or ""),
                 "data_type": compiled.data_type,
+                "images_sent": len(compiled.images or ([] if not compiled.image_b64 else [1])),
+                "attachment_warning": compiled.attachment_warning,
             }
             yield json.dumps(meta) + "\n"
             if compiled.kiosk_blocked:
@@ -244,6 +246,7 @@ async def chat_endpoint(
                     history=hist,
                     image_b64=compiled.image_b64,
                     image_mime=compiled.image_mime,
+                    images=compiled.images or None,
                     session=session,
                 ):
                     if session.provider and not routing_sent:
@@ -289,6 +292,7 @@ async def chat_endpoint(
             history=hist,
             image_b64=compiled.image_b64,
             image_mime=compiled.image_mime,
+            images=compiled.images or None,
         )
     except Exception as exc:
         return JSONResponse(

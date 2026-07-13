@@ -344,10 +344,33 @@ select, input[type="text"], input[type="password"] {
   display: flex; flex-direction: column; gap: 10px;
   flex-shrink: 0;
 }
-.attachments { display: flex; flex-wrap: wrap; gap: 6px; }
+.attachments { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .chip {
   font-size: 0.78rem; background: #f4f4f5; border: 1px solid var(--border);
-  border-radius: 999px; padding: 4px 10px; color: #52525b;
+  border-radius: 999px; padding: 4px 8px 4px 10px; color: #52525b;
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+}
+.chip.ready { color: #3f3f46; }
+.chip-kind {
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-transform: lowercase;
+}
+.chip-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;
+}
+.chip-x {
+  border: none; background: transparent; color: #a1a1aa; cursor: pointer;
+  font-size: 0.95rem; line-height: 1; padding: 0 2px;
+}
+.chip-x:hover { color: #18181b; }
+.attach-status {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--muted); font-size: 0.78rem;
+}
+.attach-meta {
+  color: var(--muted); font-size: 0.72rem; margin-left: 2px;
 }
 .row { display: flex; gap: 10px; align-items: flex-end; }
 textarea {

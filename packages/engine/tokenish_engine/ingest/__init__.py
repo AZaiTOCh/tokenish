@@ -177,6 +177,7 @@ def optimize_image(data: bytes, prompt: str) -> IngestResult:
         data_type="optimized_image_pixels",
         image_b64=b64,
         image_mime="image/jpeg",
+        images=[{"b64": b64, "mime": "image/jpeg"}],
         metadata={"mode": "visual", "size": list(rgb.size)},
     )
 
@@ -213,24 +214,68 @@ def ingest_file(
     return extract_text_file(data, ext or "bin")
 
 
+def _collect_images(part: IngestResult) -> list[dict[str, str]]:
+    if part.images:
+        out: list[dict[str, str]] = []
+        for im in part.images:
+            b64 = (im.get("b64") or im.get("image_b64") or "").strip()
+            if not b64:
+                continue
+            out.append({
+                "b64": b64,
+                "mime": im.get("mime") or im.get("image_mime") or "image/jpeg",
+            })
+        return out
+    if part.image_b64:
+        return [{"b64": part.image_b64, "mime": part.image_mime or "image/jpeg"}]
+    return []
+
+
 def merge_ingests(parts: list[IngestResult]) -> IngestResult:
     if not parts:
         return IngestResult()
     if len(parts) == 1:
-        return parts[0]
+        one = parts[0]
+        imgs = _collect_images(one)
+        if imgs and not one.images:
+            return one.model_copy(
+                update={
+                    "images": imgs,
+                    "image_b64": imgs[0]["b64"],
+                    "image_mime": imgs[0]["mime"],
+                }
+            )
+        return one
+
     texts: list[str] = []
-    image = mime = None
+    images: list[dict[str, str]] = []
     types: list[str] = []
     for i, p in enumerate(parts, 1):
         types.append(p.data_type)
-        if p.image_b64 and image is None:
-            image, mime = p.image_b64, p.image_mime
+        images.extend(_collect_images(p))
         if p.raw_text.strip():
             texts.append(f"### ATTACHMENT {i} [{p.data_type}]\n{p.raw_text}")
+
+    max_n = max(1, int(settings.max_vision_images))
+    dropped = max(0, len(images) - max_n)
+    if dropped:
+        images = images[:max_n]
+
+    meta: dict = {
+        "attachments": len(parts),
+        "images_kept": len(images),
+        "images_dropped": dropped,
+    }
+    if dropped:
+        meta["warning"] = (
+            f"only {max_n} images sent (LLM vision limit); {dropped} image(s) dropped"
+        )
+
     return IngestResult(
         raw_text="\n\n".join(texts),
         data_type="+".join(types),
-        image_b64=image,
-        image_mime=mime,
-        metadata={"attachments": len(parts)},
+        image_b64=images[0]["b64"] if images else None,
+        image_mime=images[0]["mime"] if images else None,
+        images=images,
+        metadata=meta,
     )
