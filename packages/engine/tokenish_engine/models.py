@@ -30,6 +30,8 @@ class IngestResult(BaseModel):
     page_count: int | None = None
     image_b64: str | None = None
     image_mime: str | None = None
+    # All vision payloads for this ingest (multi-image). image_b64 mirrors images[0].
+    images: list[dict[str, str]] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -41,10 +43,12 @@ class CompileResult(BaseModel):
     data_type: str
     image_b64: str | None = None
     image_mime: str | None = None
+    images: list[dict[str, str]] = Field(default_factory=list)
     stages: list[str] = Field(default_factory=list)
     pxpipe_applied: bool = False
     its: dict[str, Any] = Field(default_factory=dict)
     kiosk_blocked: bool = False
+    attachment_warning: str | None = None
 
 
 class ChatMessage(BaseModel):

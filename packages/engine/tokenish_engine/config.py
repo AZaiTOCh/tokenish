@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     max_pdf_pages_full: int = 40
     vision_max_dimension: int = 768
     jpeg_quality: int = 82
+    max_vision_images: int = 8
     its_threshold: float = 0.4
     enable_pxpipe: bool = True
     enable_headroom: bool = True

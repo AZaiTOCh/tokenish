@@ -307,15 +307,41 @@ def _completion_body(model: str, messages: list, *, provider: str, stream: bool)
     return body
 
 
-def _user_content(envelope: str, image_b64: str | None, image_mime: str | None) -> Any:
-    if image_b64:
-        return [
-            {"type": "text", "text": envelope},
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:{image_mime or 'image/png'};base64,{image_b64}"},
-            },
-        ]
+def _normalize_images(
+    image_b64: str | None = None,
+    image_mime: str | None = None,
+    images: list[dict[str, str]] | None = None,
+) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    if images:
+        for im in images:
+            b64 = (im.get("b64") or im.get("image_b64") or "").strip()
+            if not b64:
+                continue
+            mime = im.get("mime") or im.get("image_mime") or "image/jpeg"
+            out.append((b64, mime))
+    elif image_b64:
+        out.append((image_b64, image_mime or "image/jpeg"))
+    return out
+
+
+def _user_content(
+    envelope: str,
+    image_b64: str | None,
+    image_mime: str | None,
+    images: list[dict[str, str]] | None = None,
+) -> Any:
+    parts = _normalize_images(image_b64, image_mime, images)
+    if parts:
+        content: list[dict[str, Any]] = [{"type": "text", "text": envelope}]
+        for b64, mime in parts:
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime or 'image/png'};base64,{b64}"},
+                }
+            )
+        return content
     return envelope
 
 
@@ -370,6 +396,7 @@ async def chat_complete(
     history: list[dict[str, str]] | None = None,
     image_b64: str | None = None,
     image_mime: str | None = None,
+    images: list[dict[str, str]] | None = None,
 ) -> str:
     history = history or []
     errors: list[str] = []
@@ -382,6 +409,7 @@ async def chat_complete(
                 history=history,
                 image_b64=image_b64,
                 image_mime=image_mime,
+                images=images,
             )
         except Exception as exc:
             errors.append(f"{prov}/{mdl}: {exc}")
@@ -414,6 +442,7 @@ async def chat_stream(
     history: list[dict[str, str]] | None = None,
     image_b64: str | None = None,
     image_mime: str | None = None,
+    images: list[dict[str, str]] | None = None,
     session: StreamSession | None = None,
 ) -> AsyncIterator[str]:
     history = history or []
@@ -426,6 +455,7 @@ async def chat_stream(
     for prov, mdl in chain:
         try:
             if prov in {"openai", "groq", "openrouter", "perplexity"}:
+                vision_ok = prov in {"openai", "openrouter"}
                 async for delta in _openai_compatible_stream(
                     provider=prov,
                     base_url=_base_url(prov),
@@ -433,8 +463,9 @@ async def chat_stream(
                     model=mdl,
                     envelope=envelope,
                     history=history,
-                    image_b64=image_b64 if prov in {"openai", "openrouter"} else None,
-                    image_mime=image_mime if prov in {"openai", "openrouter"} else None,
+                    image_b64=image_b64 if vision_ok else None,
+                    image_mime=image_mime if vision_ok else None,
+                    images=images if vision_ok else None,
                     extra_headers=_extra_headers(prov),
                 ):
                     if session and session.provider is None:
@@ -459,6 +490,7 @@ async def chat_stream(
                 history=history,
                 image_b64=image_b64,
                 image_mime=image_mime,
+                images=images,
             )
             if session:
                 session.provider = prov
@@ -518,12 +550,14 @@ async def _dispatch_once(
     history: list[dict[str, str]],
     image_b64: str | None,
     image_mime: str | None,
+    images: list[dict[str, str]] | None = None,
 ) -> str:
     if provider == "anthropic":
-        return await _anthropic_chat(model, envelope, history, image_b64, image_mime)
+        return await _anthropic_chat(model, envelope, history, image_b64, image_mime, images)
     if provider == "gemini":
-        return await _gemini_chat(model, envelope, history, image_b64, image_mime)
+        return await _gemini_chat(model, envelope, history, image_b64, image_mime, images)
     if provider in {"groq", "openai", "openrouter", "perplexity"}:
+        vision_ok = provider in {"openai", "openrouter"}
         return await _openai_compatible(
             provider=provider,
             base_url=_base_url(provider),
@@ -531,8 +565,9 @@ async def _dispatch_once(
             model=model,
             envelope=envelope,
             history=history,
-            image_b64=image_b64 if provider in {"openai", "openrouter"} else None,
-            image_mime=image_mime if provider in {"openai", "openrouter"} else None,
+            image_b64=image_b64 if vision_ok else None,
+            image_mime=image_mime if vision_ok else None,
+            images=images if vision_ok else None,
             extra_headers=_extra_headers(provider),
         )
     raise RuntimeError(f"unknown provider: {provider}")
@@ -548,6 +583,7 @@ async def _openai_compatible(
     history: list[dict[str, str]],
     image_b64: str | None,
     image_mime: str | None,
+    images: list[dict[str, str]] | None = None,
     extra_headers: dict[str, str] | None = None,
 ) -> str:
     if not api_key:
@@ -556,7 +592,7 @@ async def _openai_compatible(
         {"role": h["role"], "content": h["content"]} for h in history
     ]
     messages.append(
-        {"role": "user", "content": _user_content(envelope, image_b64, image_mime)}
+        {"role": "user", "content": _user_content(envelope, image_b64, image_mime, images)}
     )
     headers = {"Authorization": f"Bearer {api_key}", **(extra_headers or {})}
     async with httpx.AsyncClient(timeout=120.0) as client:
@@ -582,6 +618,7 @@ async def _openai_compatible_stream(
     history: list[dict[str, str]],
     image_b64: str | None,
     image_mime: str | None,
+    images: list[dict[str, str]] | None = None,
     extra_headers: dict[str, str] | None = None,
 ) -> AsyncIterator[str]:
     if not api_key:
@@ -590,7 +627,7 @@ async def _openai_compatible_stream(
         {"role": h["role"], "content": h["content"]} for h in history
     ]
     messages.append(
-        {"role": "user", "content": _user_content(envelope, image_b64, image_mime)}
+        {"role": "user", "content": _user_content(envelope, image_b64, image_mime, images)}
     )
     headers = {"Authorization": f"Bearer {api_key}", **(extra_headers or {})}
     async with httpx.AsyncClient(timeout=120.0) as client:
@@ -626,6 +663,7 @@ async def _gemini_chat(
     history: list[dict[str, str]],
     image_b64: str | None = None,
     image_mime: str | None = None,
+    images: list[dict[str, str]] | None = None,
 ) -> str:
     key = gemini_key()
     if not key:
@@ -635,12 +673,12 @@ async def _gemini_chat(
         role = "user" if h["role"] == "user" else "model"
         contents.append({"role": role, "parts": [{"text": h["content"]}]})
     user_parts: list[dict[str, Any]] = []
-    if image_b64:
+    for b64, mime in _normalize_images(image_b64, image_mime, images):
         user_parts.append(
             {
                 "inline_data": {
-                    "mime_type": image_mime or "image/jpeg",
-                    "data": image_b64,
+                    "mime_type": mime or "image/jpeg",
+                    "data": b64,
                 }
             }
         )
@@ -676,8 +714,6 @@ async def _gemini_chat(
             )
 
     r = await _call(settings.gemini_model if model.startswith("gemini") else model)
-    # Never fall back to other Gemini versions — only surface the HTTP error
-    # so the outer chain can try OpenRouter.
     if r.status_code >= 400:
         raise RuntimeError(f"gemini HTTP {r.status_code}: {r.text[:240]}")
     data = r.json()
@@ -691,24 +727,28 @@ async def _anthropic_chat(
     history: list[dict[str, str]],
     image_b64: str | None,
     image_mime: str | None,
+    images: list[dict[str, str]] | None = None,
 ) -> str:
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY missing")
     messages: list[dict[str, Any]] = []
     for h in history:
         messages.append({"role": h["role"], "content": h["content"]})
-    if image_b64:
-        content: Any = [
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": image_mime or "image/png",
-                    "data": image_b64,
-                },
-            },
-            {"type": "text", "text": envelope},
-        ]
+    vision = _normalize_images(image_b64, image_mime, images)
+    if vision:
+        content: Any = []
+        for b64, mime in vision:
+            content.append(
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": mime or "image/png",
+                        "data": b64,
+                    },
+                }
+            )
+        content.append({"type": "text", "text": envelope})
     else:
         content = envelope
     messages.append({"role": "user", "content": content})
