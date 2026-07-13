@@ -92,6 +92,41 @@ def baseline_prompt(human_prompt: str, raw_document_text: str) -> str:
     return human_prompt or ""
 
 
+def wants_instruction_following(human_prompt: str, has_attachment: bool) -> bool:
+    """User wants the model to follow an attachment, not invent a new answer."""
+    if not has_attachment:
+        return False
+    p = (human_prompt or "").strip()
+    if len(p) < 120:
+        return True
+    lower = p.lower()
+    cues = (
+        "follow",
+        "attached",
+        "attachment",
+        "instruction",
+        "as written",
+        "per the",
+        "in the document",
+        "in the file",
+        "assess this",
+        "evaluate this",
+        "review this",
+    )
+    return any(c in lower for c in cues)
+
+
+def instruction_follow_envelope(human_prompt: str, raw_document_text: str, data_type: str) -> str:
+    prompt = (human_prompt or "").strip()
+    doc = raw_document_text or ""
+    return (
+        f"{prompt}\n\n"
+        f"### ATTACHED_DOCUMENT [Type: {data_type.upper()}] (#D)\n"
+        f"Follow the attached content exactly. Do not invent material that is not in #D.\n"
+        f"```text\n{doc}\n```"
+    )
+
+
 def document_verbatim_in_envelope(envelope: str, raw_document_text: str) -> bool:
     """Lossless guard: raw #D payload must appear unchanged in the envelope."""
     if not raw_document_text:

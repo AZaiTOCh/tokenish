@@ -71,13 +71,16 @@ async function loadProviders() {
     modelsList.innerHTML = [...modelSet].map((m) => `<option value="${m}"></option>`).join("");
     const pref = data.preferred;
     if (pref?.provider && pref?.model) {
-      document.getElementById("provider").value =
-        pref.provider === "openai" || pref.provider === "groq" ? "auto" : pref.provider;
+      document.getElementById("provider").value = "auto";
       document.getElementById("model").value = pref.model;
     }
     const oai = (data.providers || []).find((p) => p.name === "openai");
     if (oai && !oai.available && /quota|429/i.test(oai.detail || "")) {
-      showError("ChatGPT quota exceeded — replies use Gemini/OpenRouter fallback");
+      showError("ChatGPT quota exceeded — using Gemini (attach files for token savings)");
+    }
+    const orp = (data.providers || []).find((p) => p.name === "openrouter");
+    if (orp && !orp.available && /402|credit/i.test(orp.detail || "")) {
+      showError("OpenRouter needs credits — using Gemini only");
     }
   } catch {
     showError("engine offline");

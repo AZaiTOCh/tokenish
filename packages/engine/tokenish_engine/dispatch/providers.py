@@ -51,6 +51,13 @@ def _load_fallbacks() -> list[tuple[str, str]]:
     ]
 
 
+def _first_active_fallback() -> tuple[str, str] | None:
+    for prov, mdl in _load_fallbacks():
+        if _provider_active(prov):
+            return prov, mdl
+    return None
+
+
 def resolve_provider(provider: str | None, model: str | None, target_engine: str) -> str:
     if provider and provider != "auto":
         p = provider.lower().strip()
@@ -69,26 +76,35 @@ def resolve_provider(provider: str | None, model: str | None, target_engine: str
     if "openrouter" in blob or ":free" in blob:
         return "openrouter"
     if any(x in blob for x in ("gpt", "openai", "o1", "o3", "o4", "chatgpt")):
-        return "openai"
+        if _provider_active("openai"):
+            return "openai"
     if "groq" in blob or "llama-3" in blob:
-        return "groq"
-    # Auto: prefer configured fallback order
+        if _provider_active("groq"):
+            return "groq"
+    active = _first_active_fallback()
+    if active:
+        return active[0]
     if openai_key():
         return "openai"
     if gemini_key():
         return "gemini"
     if settings.openrouter_api_key:
         return "openrouter"
-    if settings.perplexity_api_key:
-        return "perplexity"
-    if settings.anthropic_api_key:
-        return "anthropic"
-    if settings.groq_api_key:
-        return "groq"
-    return "openai"
+    return "gemini"
 
 
-def _provider_ready(name: str) -> bool:
+def resolve_model(provider: str, model: str | None, target_engine: str) -> str:
+    m = (model or target_engine or "").strip()
+    if provider == "openai":
+        return m if m and _provider_active("openai") else settings.openai_primary_model
+    if provider == "gemini":
+        return settings.gemini_model if not m or "gpt" in m.lower() else m
+    if provider == "openrouter":
+        return settings.openrouter_free_model if not m or "gpt" in m.lower() else m
+    return m or target_engine or settings.openai_primary_model
+
+
+def _provider_has_key(name: str) -> bool:
     if name == "groq":
         return bool(settings.groq_api_key)
     if name == "gemini":
@@ -104,6 +120,23 @@ def _provider_ready(name: str) -> bool:
     return False
 
 
+def _provider_active(name: str) -> bool:
+    if not _provider_has_key(name):
+        return False
+    try:
+        data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
+        prov = data.get("providers", {}).get(name, {})
+        if "is_active" in prov:
+            return bool(prov["is_active"])
+    except Exception:
+        pass
+    return True
+
+
+def _provider_ready(name: str) -> bool:
+    return _provider_active(name)
+
+
 async def preflight() -> list[ProviderStatus]:
     """Argus live health + key roster (Groq 70B/8B, Gemini 3.5, OpenRouter free)."""
     statuses, _ = await run_preflight()
@@ -112,6 +145,27 @@ async def preflight() -> list[ProviderStatus]:
 
 async def preflight_full() -> tuple[list[ProviderStatus], dict]:
     return await run_preflight()
+
+
+def _mark_provider_error(name: str, err: str) -> None:
+    if "402" not in err and "429" not in err and "quota" not in err.lower() and "credit" not in err.lower():
+        return
+    try:
+        data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
+        prov = data.setdefault("providers", {}).setdefault(name, {})
+        prov["is_active"] = False
+        prov["error"] = err[:160]
+        _ROUTING_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _completion_body(model: str, messages: list, *, provider: str, stream: bool) -> dict[str, Any]:
+    max_tokens = 2048 if provider == "openrouter" else 4096
+    body: dict[str, Any] = {"model": model, "messages": messages, "max_tokens": max_tokens}
+    if stream:
+        body["stream"] = True
+    return body
 
 
 def _user_content(envelope: str, image_b64: str | None, image_mime: str | None) -> Any:
@@ -124,17 +178,6 @@ def _user_content(envelope: str, image_b64: str | None, image_mime: str | None) 
             },
         ]
     return envelope
-
-
-def _provider_active(name: str) -> bool:
-    try:
-        data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
-        prov = data.get("providers", {}).get(name, {})
-        if "is_active" in prov:
-            return bool(prov["is_active"])
-    except Exception:
-        pass
-    return _provider_ready(name)
 
 
 def _fallback_chain(provider: str, model: str) -> list[tuple[str, str]]:
@@ -184,7 +227,7 @@ def _provider_skip_reason(name: str) -> str:
             return f"{name}: unavailable"
     except Exception:
         pass
-    if not _provider_ready(name):
+    if not _provider_has_key(name):
         return f"{name}: API key missing"
     return f"{name}: unavailable"
 
@@ -209,6 +252,7 @@ async def chat_stream(
         try:
             if prov in {"openai", "groq", "openrouter", "perplexity"}:
                 async for delta in _openai_compatible_stream(
+                    provider=prov,
                     base_url=_base_url(prov),
                     api_key=_api_key(prov) or "",
                     model=mdl,
@@ -224,6 +268,7 @@ async def chat_stream(
                         session.fallback_used = (prov, mdl) != requested
                         if session.fallback_used and last_err:
                             session.fallback_reason = last_err
+                        last_err = ""
                     yield delta
                 if session and session.provider is None:
                     session.provider = prov
@@ -250,6 +295,7 @@ async def chat_stream(
             return
         except Exception as exc:
             last_err = f"{prov}: {str(exc)[:120]}"
+            _mark_provider_error(prov, str(exc))
             if session:
                 session.fallback_reason = last_err
             continue
@@ -306,6 +352,7 @@ async def _dispatch_once(
         return await _gemini_chat(model, envelope, history, image_b64, image_mime)
     if provider in {"groq", "openai", "openrouter", "perplexity"}:
         return await _openai_compatible(
+            provider=provider,
             base_url=_base_url(provider),
             api_key=_api_key(provider) or "",
             model=model,
@@ -320,6 +367,7 @@ async def _dispatch_once(
 
 async def _openai_compatible(
     *,
+    provider: str,
     base_url: str,
     api_key: str,
     model: str,
@@ -342,15 +390,18 @@ async def _openai_compatible(
         r = await client.post(
             f"{base_url.rstrip('/')}/chat/completions",
             headers=headers,
-            json={"model": model, "messages": messages},
+            json=_completion_body(model, messages, provider=provider, stream=False),
         )
         if r.status_code >= 400:
-            raise RuntimeError(f"HTTP {r.status_code}: {r.text[:240]}")
+            err = f"HTTP {r.status_code}: {r.text[:240]}"
+            _mark_provider_error(provider, err)
+            raise RuntimeError(err)
         return r.json()["choices"][0]["message"]["content"]
 
 
 async def _openai_compatible_stream(
     *,
+    provider: str,
     base_url: str,
     api_key: str,
     model: str,
@@ -374,11 +425,13 @@ async def _openai_compatible_stream(
             "POST",
             f"{base_url.rstrip('/')}/chat/completions",
             headers=headers,
-            json={"model": model, "messages": messages, "stream": True},
+            json=_completion_body(model, messages, provider=provider, stream=True),
         ) as r:
             if r.status_code >= 400:
                 body = await r.aread()
-                raise RuntimeError(f"HTTP {r.status_code}: {body[:240]!r}")
+                err = f"HTTP {r.status_code}: {body[:240]!r}"
+                _mark_provider_error(provider, err)
+                raise RuntimeError(err)
             async for line in r.aiter_lines():
                 if not line.startswith("data: "):
                     continue

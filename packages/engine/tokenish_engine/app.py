@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from tokenish_engine import __version__
-from tokenish_engine.dispatch import chat_complete, chat_stream, preflight, preflight_full, resolve_provider
+from tokenish_engine.dispatch import chat_complete, chat_stream, preflight, preflight_full, resolve_provider, resolve_model
 from tokenish_engine.dispatch.providers import StreamSession
 from tokenish_engine.pipeline import optimize
 from tokenish_engine.retrieve import moorcheh_available
@@ -120,7 +120,7 @@ async def chat_endpoint(
     )
     hist = _parse_history(history)
     prov = resolve_provider(provider, model, target_engine)
-    mdl = model or target_engine
+    mdl = resolve_model(prov, model, target_engine)
     tokex = _tokex_payload(compiled)
 
     if stream:
@@ -135,6 +135,8 @@ async def chat_endpoint(
                 "meter": tokex,
                 "stages": compiled.stages,
                 "kiosk_blocked": compiled.kiosk_blocked,
+                "attachment_chars": len(compiled.envelope or ""),
+                "data_type": compiled.data_type,
             }
             yield json.dumps(meta) + "\n"
             if compiled.kiosk_blocked:

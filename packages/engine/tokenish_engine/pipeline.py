@@ -5,6 +5,8 @@ from tokenish_engine.compile import (
     baseline_prompt,
     compress_instructions,
     document_verbatim_in_envelope,
+    instruction_follow_envelope,
+    wants_instruction_following,
 )
 from tokenish_engine.compress import compress_context, maybe_hi0_json_block
 from tokenish_engine.config import settings
@@ -59,7 +61,10 @@ def optimize(
             raw_doc = compressed
             stages.append(stage)
 
-    if use_its and raw_doc:
+    has_attachment = bool(raw_doc.strip() or image_b64)
+    follow_mode = wants_instruction_following(prompt, has_attachment and bool(raw_doc.strip()))
+
+    if use_its and raw_doc and not follow_mode:
         gated = gate_document(prompt, raw_doc, enabled=True, kiosk_mode=use_kiosk)
         its_meta = {
             "dropped": gated.dropped,
@@ -78,7 +83,7 @@ def optimize(
 
     px_applied = False
     px_surcharge = 0
-    if use_pxpipe and raw_doc and not image_b64 and not kiosk_blocked:
+    if use_pxpipe and raw_doc and not image_b64 and not kiosk_blocked and not follow_mode:
         pointer, pb64, pmime, px_applied = maybe_pack(
             raw_doc,
             model=model,
@@ -92,6 +97,30 @@ def optimize(
             stages.append("pxpipe")
 
     nodes = compress_instructions(prompt)
+
+    if follow_mode and raw_doc and not kiosk_blocked:
+        envelope = instruction_follow_envelope(prompt, raw_doc, data_type)
+        stages.append("instruction_follow")
+        baseline = baseline_prompt(prompt, ingested.raw_text or "")
+        tokex = compute_tokex(
+            baseline_text=baseline,
+            optimized_text=envelope,
+            stages=stages,
+            fact_notes=["instruction-follow mode: prompt + verbatim #D"],
+        )
+        return CompileResult(
+            envelope=envelope,
+            nodes=nodes,
+            meter=tokex,
+            tokex=tokex,
+            data_type=data_type,
+            image_b64=image_b64,
+            image_mime=image_mime,
+            stages=stages,
+            pxpipe_applied=False,
+            its=its_meta,
+            kiosk_blocked=kiosk_blocked,
+        )
 
     # Short prompts with no attachment: skip LCS wrapper (cannot save tokens).
     if not raw_doc and not image_b64 and count_tokens(prompt) < 32:

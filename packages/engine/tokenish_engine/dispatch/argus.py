@@ -358,7 +358,13 @@ async def run_preflight(*, force: bool = False) -> tuple[list[ProviderStatus], d
 
 def _is_quota_error(err: str) -> bool:
     e = (err or "").lower()
-    return "429" in e or "quota" in e or "resource_exhausted" in e
+    return (
+        "429" in e
+        or "402" in e
+        or "quota" in e
+        or "credit" in e
+        or "resource_exhausted" in e
+    )
 
 
 def _should_deactivate(err: str) -> bool:
