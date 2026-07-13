@@ -1,9 +1,15 @@
-"""Title interpreter unit tests."""
+"""Mumblz title agent tests."""
 
-from tokenish_engine.agents import interpret_thread_title, normalize_three_word_title
+from tokenish_engine.agents import mumblz_name_thread, mumblz_title, strip_vowels_word
 
 
-def test_three_word_unicombinatorics_title():
+def test_mumblz_strips_vowels():
+    assert strip_vowels_word("Combinatorics") == "Cmbntrcs"
+    assert strip_vowels_word("Critique") == "Crtq"
+    assert mumblz_title("Neon Cityscape Review") == "Nn Ctyscp Rvw"
+
+
+def test_mumblz_unicombinatorics_title():
     msgs = [
         {
             "role": "user",
@@ -21,13 +27,15 @@ def test_three_word_unicombinatorics_title():
             ),
         },
     ]
-    title = interpret_thread_title(msgs)
+    title = mumblz_name_thread(msgs)
     parts = title.split()
     assert len(parts) == 3
-    assert any(p.lower() in {"combinatorics", "critique", "vetting", "brief", "audit", "math"} for p in parts)
+    joined = " ".join(parts).lower()
+    assert "a" not in joined and "e" not in joined and "i" not in joined
+    assert "o" not in joined and "u" not in joined
 
 
-def test_three_word_palette_title():
+def test_mumblz_three_words():
     msgs = [
         {"role": "user", "content": "Deeply Assess the attached. I want color and details of ratios and styles."},
         {
@@ -35,10 +43,5 @@ def test_three_word_palette_title():
             "content": "Neon parking booth night cityscape with painterly blues and warm accents.",
         },
     ]
-    title = interpret_thread_title(msgs)
+    title = mumblz_name_thread(msgs)
     assert len(title.split()) == 3
-
-
-def test_normalize_three_words():
-    assert normalize_three_word_title('"Neon City Review"') == "Neon City Review"
-    assert len(normalize_three_word_title("onlytwo").split()) == 3

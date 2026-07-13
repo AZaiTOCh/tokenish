@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from tokenish_engine import __version__
-from tokenish_engine.agents import interpret_thread_title, interpret_thread_title_llm, normalize_three_word_title
+from tokenish_engine.agents import mumblz_name_thread, mumblz_name_thread_llm, normalize_three_word_title
 from tokenish_engine.dispatch import chat_complete, chat_stream, preflight_full, resolve_model, resolve_provider
 from tokenish_engine.dispatch.providers import StreamSession
 from tokenish_engine.history import compress_history
@@ -47,7 +47,7 @@ class KeysPayload(BaseModel):
     OPENROUTER_API_KEY: str | None = None
 
 
-class TitlePayload(BaseModel):
+class MumblzPayload(BaseModel):
     messages: list[dict[str, str]] = []
     use_llm: bool = False
 
@@ -60,19 +60,20 @@ async def root_ui():
     return JSONResponse({"status": "ok", "version": __version__})
 
 
+@app.post("/mumblz")
 @app.post("/title")
-async def title_thread(payload: TitlePayload) -> dict[str, Any]:
-    """Interpreter agent: whole-dialog → three-word History title."""
+async def mumblz_thread(payload: MumblzPayload) -> dict[str, Any]:
+    """Mumblz agent: whole-dialog → three-word title → vowel-stripped History label."""
     apply_saved_keys_to_environ()
-    local = interpret_thread_title(payload.messages)
+    local = mumblz_name_thread(payload.messages)
     title = local
-    source = "local"
+    source = "mumblz"
     if payload.use_llm:
-        polished = await interpret_thread_title_llm(payload.messages)
+        polished = await mumblz_name_thread_llm(payload.messages)
         if polished:
             title = normalize_three_word_title(polished, fallback=local)
-            source = "llm" if title != local else "local"
-    return {"title": title, "local": local, "source": source}
+            source = "mumblz+llm" if title != local else "mumblz"
+    return {"title": title, "local": local, "source": source, "agent": "Mumblz"}
 
 
 @app.get("/health")
