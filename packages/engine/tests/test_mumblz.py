@@ -3,10 +3,10 @@
 from tokenish_engine.agents import mumblz_name_thread, mumblz_title
 
 
-def test_mumblz_keeps_vowels_two_words():
-    assert mumblz_title("Neon Cityscape Review") == "Neon Cityscape"
-    assert mumblz_title("Combinatorics Critique Audit") == "Combinatorics Critique"
-    assert mumblz_title("") == "Fresh Thread"
+def test_mumblz_keeps_vowels_two_words_lowercase():
+    assert mumblz_title("Neon Cityscape Review") == "neon cityscape"
+    assert mumblz_title("Combinatorics Critique Audit") == "combinatorics critique"
+    assert mumblz_title("") == "fresh thread"
 
 
 def test_mumblz_two_words_combinatorics_chat():
@@ -30,8 +30,8 @@ def test_mumblz_two_words_combinatorics_chat():
     title = mumblz_name_thread(msgs)
     parts = title.split()
     assert len(parts) == 2
-    # Vowels kept — readable English words
-    assert any(c in title.lower() for c in "aeiou")
+    assert title == title.lower()
+    assert any(c in title for c in "aeiou")
     joined = title.lower()
     assert "combinatorics" in joined or "critique" in joined or "digest" in joined
 
@@ -47,4 +47,5 @@ def test_mumblz_two_words_palette_chat():
     title = mumblz_name_thread(msgs)
     parts = title.split()
     assert len(parts) == 2
-    assert any(c in title.lower() for c in "aeiou")
+    assert title == title.lower()
+    assert any(c in title for c in "aeiou")

@@ -9,7 +9,7 @@ const providerSelect = document.getElementById("provider");
 const threadListEl = document.getElementById("threadList");
 
 const STORE_KEY = "tokenish.threads.v2";
-const MUMBLZ_REV = "two-word-vowels-v2";
+const MUMBLZ_REV = "lowercase-titles-v1";
 const WELCOME = "Attach a pdf, docx, xlsx, csv, or image. tokenish optimizes every send automatically.";
 
 const DEFAULT_MODELS = [
@@ -67,7 +67,7 @@ function rebuildLifetimeFromThreads() {
   return agg;
 }
 
-function newThread(title = "New chat") {
+function newThread(title = "new chat") {
   return {
     id: uid(),
     title,
@@ -133,8 +133,8 @@ function fillTokexBox(prefix, t, scopeLabel) {
   const grandPct = before > 0 ? Math.round((saved / before) * 10000) / 100 : 0;
 
   document.getElementById(`${prefix}Saved`).textContent = before
-    ? `Saved Tokens ${grandPct}%`
-    : "Saved Tokens 0%";
+    ? `saved tokens ${grandPct}%`
+    : "saved tokens 0%";
   document.getElementById(`${prefix}Scope`).textContent = scopeLabel;
   document.getElementById(`${prefix}Total`).textContent = Number(before).toLocaleString();
   document.getElementById(`${prefix}Run`).textContent = Number(after).toLocaleString();
@@ -231,21 +231,21 @@ function makeTknshLoader() {
 }
 
 function titleFromPrompt(prompt) {
-  const t = (prompt || "").trim().replace(/\s+/g, " ");
-  if (!t) return "New chat";
+  const t = (prompt || "").trim().replace(/\s+/g, " ").toLowerCase();
+  if (!t) return "new chat";
   return t.length > 42 ? `${t.slice(0, 42)}…` : t;
 }
 
-function titleCaseWord(w) {
+function titleWord(w) {
   if (!w) return w;
-  return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  return String(w).toLowerCase();
 }
 
-/** Mumblz: normalize to two Title Case words (no vowel stripping). */
+/** Mumblz: normalize to two lowercase words (no vowel stripping). */
 function mumblzTitle(title) {
   const parts = String(title || "").trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "Fresh Thread";
-  return parts.slice(0, 2).map(titleCaseWord).join(" ");
+  if (!parts.length) return "fresh thread";
+  return parts.slice(0, 2).map(titleWord).join(" ");
 }
 
 /** True if title looks vowel-stripped (old Mumblz mumble). Never keep these. */
@@ -269,36 +269,36 @@ function interpretTitleLocal(messages) {
     .map((m) => String(m.content || ""))
     .join("\n")
     .slice(0, 5000);
-  if (!blob.trim()) return mumblzTitle("Fresh Thread");
+  if (!blob.trim()) return mumblzTitle("fresh thread");
 
   const rules = [
-    [/unicombinator|freefactorial|freesar|g[- ]?triangle/i, "Combinatorics", 12],
-    [/gveb|waldo|raphael|bosch|visual exhaustion/i, "Benchmark", 12],
-    [/palette|color|colour|painterly|brushstroke|chromatic/i, "Chromatic", 10],
-    [/peer review|adversar|critique/i, "Critique", 9],
-    [/fact[- ]?check|vetting|validity/i, "Vetting", 8],
-    [/exec(utive)?\s*summary|brief/i, "Digest", 8],
-    [/animation|cel[- ]?shad|cartoon/i, "Animation", 8],
-    [/urban|street|parking|cityscape/i, "Cityscape", 8],
-    [/quantum|cryptograph/i, "Quantum", 9],
-    [/assess|analy/i, "Assessment", 5],
+    [/unicombinator|freefactorial|freesar|g[- ]?triangle/i, "combinatorics", 12],
+    [/gveb|waldo|raphael|bosch|visual exhaustion/i, "benchmark", 12],
+    [/palette|color|colour|painterly|brushstroke|chromatic/i, "chromatic", 10],
+    [/peer review|adversar|critique/i, "critique", 9],
+    [/fact[- ]?check|vetting|validity/i, "vetting", 8],
+    [/exec(utive)?\s*summary|brief/i, "digest", 8],
+    [/animation|cel[- ]?shad|cartoon/i, "animation", 8],
+    [/urban|street|parking|cityscape/i, "cityscape", 8],
+    [/quantum|cryptograph/i, "quantum", 9],
+    [/assess|analy/i, "assessment", 5],
   ];
   const tasks = [
-    [/adversar|peer review|critique/i, "Critique", 10],
-    [/fact[- ]?check|vet|valid/i, "Audit", 9],
-    [/summar|brief|exec/i, "Digest", 8],
-    [/color|style|ratio|break\s*down/i, "Breakdown", 8],
-    [/synthes/i, "Synthesis", 7],
-    [/assess|analy/i, "Scrutiny", 6],
+    [/adversar|peer review|critique/i, "critique", 10],
+    [/fact[- ]?check|vet|valid/i, "audit", 9],
+    [/summar|brief|exec/i, "digest", 8],
+    [/color|style|ratio|break\s*down/i, "breakdown", 8],
+    [/synthes/i, "synthesis", 7],
+    [/assess|analy/i, "scrutiny", 6],
   ];
   const friendly = [
-    "Scrutiny", "Digest", "Breakdown", "Synthesis", "Contrast",
-    "Framework", "Signalcraft", "Threadmark", "Spotlight", "Blueprint",
+    "scrutiny", "digest", "breakdown", "synthesis", "contrast",
+    "framework", "signalcraft", "threadmark", "spotlight", "blueprint",
   ];
 
   const pool = new Map();
   const add = (word, sem) => {
-    const t = titleCaseWord(String(word || "").replace(/[^A-Za-z0-9-]/g, ""));
+    const t = titleWord(String(word || "").replace(/[^A-Za-z0-9-]/g, ""));
     if (!t || t.length < 3 || stop.has(t.toLowerCase())) return;
     if (isVowellessTitle(t)) return;
     pool.set(t, Math.max(pool.get(t) || 0, sem));
@@ -329,19 +329,21 @@ function interpretTitleLocal(messages) {
   }
   while (picked.length < 2) {
     const fb = friendly.find((w) => !picked.some((p) => p.toLowerCase() === w.toLowerCase()));
-    picked.push(fb || ["Signalcraft", "Blueprint"][picked.length]);
+    picked.push(fb || ["signalcraft", "blueprint"][picked.length]);
   }
   return mumblzTitle(picked.slice(0, 2).join(" "));
 }
 
 function looksProvisionalTitle(title) {
   const t = String(title || "").trim();
-  if (!t || t === "New chat" || t === "Fresh Token Thread" || t === "Fresh Thread" || t === "Frsh Tkn Thrd") return true;
+  if (!t || t === "new chat" || t === "New chat" || t === "Fresh Token Thread" || t === "Fresh Thread" || t === "fresh thread" || t === "Frsh Tkn Thrd") return true;
   if (t.includes("…") || t.includes("...")) return true;
   if (t.length > 36) return true;
   const parts = t.split(/\s+/).filter(Boolean);
   if (parts.length !== 2) return true;
   if (isVowellessTitle(t)) return true;
+  // Old Title Case titles should be lowercased
+  if (/[A-Z]/.test(t)) return true;
   return false;
 }
 
@@ -399,7 +401,7 @@ async function retitleAllThreads({ force = false } = {}) {
     if (!mustForce && !looksProvisionalTitle(th.title)) continue;
     // Wipe vowelless / provisional title so apply always writes the new one.
     if (isVowellessTitle(th.title) || looksProvisionalTitle(th.title)) {
-      th.title = "New chat";
+      th.title = "new chat";
     }
     await refreshThreadTitle(th, { useLlm: false });
   }

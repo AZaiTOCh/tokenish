@@ -1,7 +1,7 @@
 """
 Mumblz — History title agent.
 
-Reads a full dialog and picks the two most suitable Title Case words
+Reads a full dialog and picks the two most suitable lowercase words
 for the History label (no vowel stripping).
 """
 
@@ -33,34 +33,34 @@ _STOP = {
 }
 
 _TOPIC_MAP: list[tuple[re.Pattern[str], str, int]] = [
-    (re.compile(r"unicombinator|freefactorial|freesar|superfreefactorial|g[- ]?triangle", re.I), "Combinatorics", 12),
-    (re.compile(r"\bgveb\b|waldo|raphael|bosch|visual exhaustion|grounded visual", re.I), "Benchmark", 12),
-    (re.compile(r"palette|color|colours?|chiaroscuro|brushstroke|painterly|chromatic", re.I), "Chromatic", 10),
-    (re.compile(r"quantum|cryptograph|shor|grover", re.I), "Quantum", 9),
-    (re.compile(r"peer review|adversar|critique|auditor", re.I), "Critique", 9),
-    (re.compile(r"exec(utive)?\s*summary|one[- ]?page|brief", re.I), "Digest", 8),
-    (re.compile(r"fact[- ]?check|vetting|validity|verify|verification", re.I), "Vetting", 8),
-    (re.compile(r"token|tokex|multimodal|llm|benchmark", re.I), "Tokens", 7),
-    (re.compile(r"urban|street|parking|dusk|cityscape|nocturne", re.I), "Cityscape", 8),
-    (re.compile(r"animation|cel[- ]?shad|cartoon|character", re.I), "Animation", 8),
-    (re.compile(r"mathematic|formula|permutation|factorial|subset", re.I), "Mathcraft", 7),
-    (re.compile(r"synthesis|integrat", re.I), "Synthesis", 6),
-    (re.compile(r"assess|analysis|analyze|analyse", re.I), "Assessment", 5),
+    (re.compile(r"unicombinator|freefactorial|freesar|superfreefactorial|g[- ]?triangle", re.I), "combinatorics", 12),
+    (re.compile(r"\bgveb\b|waldo|raphael|bosch|visual exhaustion|grounded visual", re.I), "benchmark", 12),
+    (re.compile(r"palette|color|colours?|chiaroscuro|brushstroke|painterly|chromatic", re.I), "chromatic", 10),
+    (re.compile(r"quantum|cryptograph|shor|grover", re.I), "quantum", 9),
+    (re.compile(r"peer review|adversar|critique|auditor", re.I), "critique", 9),
+    (re.compile(r"exec(utive)?\s*summary|one[- ]?page|brief", re.I), "digest", 8),
+    (re.compile(r"fact[- ]?check|vetting|validity|verify|verification", re.I), "vetting", 8),
+    (re.compile(r"token|tokex|multimodal|llm|benchmark", re.I), "tokens", 7),
+    (re.compile(r"urban|street|parking|dusk|cityscape|nocturne", re.I), "cityscape", 8),
+    (re.compile(r"animation|cel[- ]?shad|cartoon|character", re.I), "animation", 8),
+    (re.compile(r"mathematic|formula|permutation|factorial|subset", re.I), "mathcraft", 7),
+    (re.compile(r"synthesis|integrat", re.I), "synthesis", 6),
+    (re.compile(r"assess|analysis|analyze|analyse", re.I), "assessment", 5),
 ]
 
 _TASK_MAP: list[tuple[re.Pattern[str], str, int]] = [
-    (re.compile(r"adversar|peer review|critique", re.I), "Critique", 10),
-    (re.compile(r"fact[- ]?check|vet|valid", re.I), "Audit", 9),
-    (re.compile(r"summar|brief|exec", re.I), "Digest", 8),
-    (re.compile(r"break\s*down|ratio|style|pattern|color", re.I), "Breakdown", 8),
-    (re.compile(r"synthes", re.I), "Synthesis", 7),
-    (re.compile(r"assess|analy", re.I), "Scrutiny", 6),
-    (re.compile(r"compare|contrast", re.I), "Contrast", 6),
+    (re.compile(r"adversar|peer review|critique", re.I), "critique", 10),
+    (re.compile(r"fact[- ]?check|vet|valid", re.I), "audit", 9),
+    (re.compile(r"summar|brief|exec", re.I), "digest", 8),
+    (re.compile(r"break\s*down|ratio|style|pattern|color", re.I), "breakdown", 8),
+    (re.compile(r"synthes", re.I), "synthesis", 7),
+    (re.compile(r"assess|analy", re.I), "scrutiny", 6),
+    (re.compile(r"compare|contrast", re.I), "contrast", 6),
 ]
 
 _DEFAULT_WORDS = [
-    "Scrutiny", "Digest", "Breakdown", "Synthesis", "Contrast",
-    "Framework", "Signalcraft", "Threadmark", "Spotlight", "Blueprint",
+    "scrutiny", "digest", "breakdown", "synthesis", "contrast",
+    "framework", "signalcraft", "threadmark", "spotlight", "blueprint",
 ]
 
 _STYLE_WORDS = {
@@ -74,32 +74,34 @@ _TITLE_WORDS = 2
 
 
 def strip_vowels_word(word: str) -> str:
-    """Deprecated no-op kept for import compatibility — returns title-cased word."""
-    return _title_case(re.sub(r"[^A-Za-z0-9-]", "", word or "")) or (word or "")
+    """Deprecated no-op kept for import compatibility — returns lowercase word."""
+    return _title_word(re.sub(r"[^A-Za-z0-9-]", "", word or "")) or (word or "")
 
 
 def mumblz_title(title: str) -> str:
-    """Normalize to at most two Title Case words (no vowel stripping)."""
+    """Normalize to at most two lowercase words (no vowel stripping)."""
     parts = [p for p in re.split(r"\s+", (title or "").strip()) if p]
     if not parts:
-        return "Fresh Thread"
-    out = " ".join(_title_case(p) for p in parts[:_TITLE_WORDS])
+        return "fresh thread"
+    out = " ".join(_title_word(p) for p in parts[:_TITLE_WORDS])
     # Never emit vowel-stripped stubs from older Mumblz revisions.
     letters = re.sub(r"[^A-Za-z]", "", out)
     if letters and not re.search(r"[aeiouAEIOU]", letters):
-        return "Fresh Thread"
+        return "fresh thread"
     return out
 
 
-def _title_case(word: str) -> str:
+def _title_word(word: str) -> str:
     if not word:
         return word
     cleaned = re.sub(r"[^A-Za-z0-9-]", "", word)
     if not cleaned:
         return word
-    if cleaned.isupper() and len(cleaned) <= 4:
-        return cleaned
-    return cleaned[:1].upper() + cleaned[1:].lower()
+    return cleaned.lower()
+
+
+# Back-compat alias
+_title_case = _title_word
 
 
 def _words(text: str) -> list[str]:
@@ -153,7 +155,7 @@ def _candidate_pool(blob: str) -> list[tuple[str, float]]:
     pool: dict[str, float] = {}
 
     def add(word: str, sem: float) -> None:
-        tw = _title_case(word)
+        tw = _title_word(word)
         if not tw or tw.lower() in _STOP or len(tw) < 3:
             return
         pool[tw] = max(pool.get(tw, 0.0), sem)
@@ -175,10 +177,10 @@ def _rank_candidates(candidates: list[tuple[str, float]]) -> list[tuple[str, flo
 
 
 def _two_word_clear(messages: list[dict[str, str]]) -> str:
-    """Pick the two most suitable Title Case words for this dialog."""
+    """Pick the two most suitable lowercase words for this dialog."""
     blob = _dialog_blob(messages)
     if not blob.strip():
-        return "Fresh Thread"
+        return "fresh thread"
 
     ranked = _rank_candidates(_candidate_pool(blob))
     picked: list[str] = []
@@ -186,7 +188,7 @@ def _two_word_clear(messages: list[dict[str, str]]) -> str:
     for word, _score in ranked:
         if word.lower() in {w.lower() for w in picked}:
             continue
-        # Skip near-duplicate stems (Assess / Assessment)
+        # Skip near-duplicate stems (assess / assessment)
         stem = word.lower()[:5]
         if any(w.lower()[:5] == stem for w in picked):
             continue
@@ -200,24 +202,24 @@ def _two_word_clear(messages: list[dict[str, str]]) -> str:
                 picked.append(fallback)
                 break
         else:
-            picked.append(["Signalcraft", "Blueprint"][len(picked) % 2])
+            picked.append(["signalcraft", "blueprint"][len(picked) % 2])
 
     return " ".join(picked[:_TITLE_WORDS])
 
 
-def normalize_three_word_title(raw: str, fallback: str = "Fresh Thread") -> str:
-    """Normalize an LLM/local title to two Title Case words (name kept for API compat)."""
+def normalize_three_word_title(raw: str, fallback: str = "fresh thread") -> str:
+    """Normalize an LLM/local title to two lowercase words (name kept for API compat)."""
     cleaned = re.sub(r"[\"'`#*_]+", "", (raw or "").strip())
     cleaned = re.sub(r"\s+", " ", cleaned)
     cleaned = cleaned.split("\n", 1)[0].strip()
     parts = [p for p in re.split(r"\s+", cleaned) if p]
     if len(parts) >= _TITLE_WORDS:
-        ranked = _rank_candidates([(_title_case(p), 5.0 + (len(parts) - i) * 0.1) for i, p in enumerate(parts[:8])])
+        ranked = _rank_candidates([(_title_word(p), 5.0 + (len(parts) - i) * 0.1) for i, p in enumerate(parts[:8])])
         clear = " ".join(w for w, _ in ranked[:_TITLE_WORDS])
         if len(clear.split()) < _TITLE_WORDS:
-            clear = " ".join(_title_case(p) for p in parts[:_TITLE_WORDS])
+            clear = " ".join(_title_word(p) for p in parts[:_TITLE_WORDS])
     elif len(parts) == 1:
-        clear = f"{_title_case(parts[0])} Digest"
+        clear = f"{_title_word(parts[0])} digest"
     else:
         clear = fallback
     return mumblz_title(clear)
@@ -227,7 +229,7 @@ normalize_two_word_title = normalize_three_word_title
 
 
 def mumblz_name_thread(messages: list[dict[str, str]]) -> str:
-    """Mumblz: dialog → two most suitable Title Case words."""
+    """Mumblz: dialog → two most suitable lowercase words."""
     return mumblz_title(_two_word_clear(messages))
 
 
@@ -235,15 +237,15 @@ interpret_thread_title = mumblz_name_thread
 
 
 async def mumblz_name_thread_llm(messages: list[dict[str, str]]) -> str | None:
-    """Optional LLM polish: reply with two Title Case words."""
+    """Optional LLM polish: reply with two lowercase words."""
     local_clear = _two_word_clear(messages)
     blob = _dialog_blob(messages)
     if len(blob) < 40:
         return mumblz_title(local_clear)
     prompt = (
-        "Read this chat and reply with ONLY two Title Case words for a history title.\n"
+        "Read this chat and reply with ONLY two lowercase words for a history title.\n"
         "Pick the two most suitable, specific words that capture the topic and task.\n"
-        "No quotes, punctuation, or explanation.\n\n"
+        "No capitals, quotes, punctuation, or explanation.\n\n"
         f"CHAT:\n{blob[:3500]}\n\n"
         f"Local Mumblz draft (improve if needed): {local_clear}"
     )
