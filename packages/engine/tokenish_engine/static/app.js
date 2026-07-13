@@ -140,32 +140,26 @@ function fillTokexBox(prefix, t, scopeLabel) {
   document.getElementById(`${prefix}Pct`).textContent = `${Number(saved).toLocaleString()} (${grandPct}%)`;
 
   const metaEl = document.getElementById(`${prefix}Meta`);
-  if (t.sends.length > 1) {
-    metaEl.hidden = false;
-    const parts = t.sends.map((s) => Number(s.saved || 0).toLocaleString()).join(" + ");
-    metaEl.textContent =
-      `saved ${parts} = ${Number(saved).toLocaleString()} ÷ before ${Number(before).toLocaleString()} = ${grandPct}%`;
-  } else {
-    metaEl.hidden = true;
-    metaEl.textContent = "";
-  }
-
   const sendsEl = document.getElementById(`${prefix}Sends`);
-  if (t.sends.length) {
-    sendsEl.hidden = false;
-    const recent = t.sends.slice(-8);
-    const offset = t.sends.length - recent.length;
-    sendsEl.innerHTML = recent
-      .map(
-        (s, i) =>
-          `<div>send ${offset + i + 1}: saved ${Number(s.saved).toLocaleString()} ` +
-          `(${Number(s.before).toLocaleString()} → ${Number(s.after).toLocaleString()}) · ${s.pct}%</div>`,
-      )
-      .join("");
-  } else {
-    sendsEl.hidden = true;
+  if (!t.sends.length) {
+    metaEl.innerHTML = `<div class="tokex-details-empty">no send details yet</div>`;
     sendsEl.innerHTML = "";
+    return;
   }
+  const parts = t.sends.map((s) => Number(s.saved || 0).toLocaleString()).join(" + ");
+  metaEl.textContent =
+    `saved ${parts} = ${Number(saved).toLocaleString()} ÷ before ${Number(before).toLocaleString()} = ${grandPct}%`;
+  sendsEl.innerHTML = t.sends
+    .map(
+      (s, i) =>
+        `<div>send ${i + 1}: saved ${Number(s.saved).toLocaleString()} ` +
+        `(${Number(s.before).toLocaleString()} → ${Number(s.after).toLocaleString()}) · ${s.pct}%</div>`,
+    )
+    .join("");
+}
+
+function closeAllTokexDetailMenus() {
+  document.querySelectorAll(".tokex-details-menu.open").forEach((el) => el.classList.remove("open"));
 }
 
 function renderTokexPanel(thread) {
@@ -281,6 +275,7 @@ function renderThreadList() {
       e.stopPropagation();
       const wasOpen = menu.classList.contains("open");
       closeAllThreadMenus();
+      closeAllTokexDetailMenus();
       if (!wasOpen) menu.classList.add("open");
     };
     row.querySelector(".thread-del").onclick = (e) => {
@@ -498,7 +493,23 @@ fileInput.onchange = () => {
 };
 document.getElementById("sendBtn").onclick = () => send();
 document.getElementById("newChat").onclick = () => createChat();
-document.addEventListener("click", () => closeAllThreadMenus());
+document.querySelectorAll(".tokex-details-btn").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const menu = btn.parentElement.querySelector(".tokex-details-menu");
+    const wasOpen = menu.classList.contains("open");
+    closeAllThreadMenus();
+    closeAllTokexDetailMenus();
+    if (!wasOpen) menu.classList.add("open");
+  });
+});
+document.querySelectorAll(".tokex-details-menu").forEach((menu) => {
+  menu.addEventListener("click", (e) => e.stopPropagation());
+});
+document.addEventListener("click", () => {
+  closeAllThreadMenus();
+  closeAllTokexDetailMenus();
+});
 promptEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
