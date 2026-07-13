@@ -1,43 +1,57 @@
 # tokenish
 
-Open-source **token use optimizer**: a local desktop chat UI whose every prompt and attachment runs through a **split-execution optimizer engine**, then dispatches to the model you select (local or cloud APIs).
+Open-source **token use optimizer**: a local daemon + chat UI. Every prompt and attachment runs through a **split-execution optimizer**, then dispatches to the model you select.
 
-## golden rule
+## install (pip)
 
-- compress **instructions** (lcs / shorthand)
-- never semantically compress **document content** — extracted file text stays verbatim in `#D`
-
-## layout
-
-```
-apps/desktop          chat ui sources
-packages/engine       fastapi optimizer + model routers
-docs/evals            evaluation protocols (gveb, tokex, energy)
+```bash
+pip install tokenish
+tokenish
 ```
 
-optimizer stages (backend only — not shown in the ui): lcs, hi0, headroom, moorcheh-style its gate, conditional pxpipe.
+Opens http://127.0.0.1:8741/ and starts the optimizer daemon.
 
-## quick start
+```bash
+tokenish doctor    # keys, home, port
+tokenish version
+tokenish serve --no-browser
+```
+
+### from this repo
 
 ```bash
 cd packages/engine
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\activate   # Windows
 pip install -e ".[dev]"
-uvicorn tokenish_engine.app:app --reload --port 8741
+tokenish
 ```
 
-open **http://127.0.0.1:8741/**
+## golden rule
 
-### optional env
+- compress **instructions** (evidence-based deletion + densify control plane)
+- never character-abbreviate free text (vowel shorthand is rejected)
+- never silently rewrite **document meaning** — `#D` stays verbatim in follow mode
+
+## windows exe
+
+See [docs/download.md](docs/download.md). Build with:
+
+```powershell
+cd packages/engine
+.\packaging\build_windows.ps1
+```
+
+## optional env / keys
+
+Keys can be pasted in the first-run UI (saved under `~/.tokenish/config.json`) or set as env vars:
 
 | variable | provider |
 |----------|----------|
-| `GPT_TOKENISH` | openai (chatgpt) |
-| `GEMINI_API_KEY` | gemini 3.5 |
+| `GPT_TOKENISH` / `OPENAI_API_KEY` | openai |
+| `GEMINI_API_KEY` | gemini |
 | `OPENROUTER_API_KEY` | openrouter |
 | `ANTHROPIC_API_KEY` | anthropic |
-| `MOORCHEH_API_KEY` | optional moorcheh cloud sdk |
 
 ## license
 

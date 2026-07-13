@@ -3,12 +3,15 @@ from __future__ import annotations
 import io
 import json
 
-import pytest
 from openpyxl import Workbook
 
-from tokenish_engine.compile import assemble_envelope, compress_instructions, document_verbatim_in_envelope
+from tokenish_engine.compile import (
+    assemble_envelope,
+    compress_instructions,
+    document_verbatim_in_envelope,
+)
 from tokenish_engine.compress.hi0 import serialize_for_llm
-from tokenish_engine.ingest import extract_excel, extract_text_file, ingest_file
+from tokenish_engine.ingest import extract_excel, ingest_file
 from tokenish_engine.pipeline import optimize
 from tokenish_engine.retrieve import gate_document, its_skill_score
 from tokenish_engine.vision.pxpipe_adapter import should_pxpipe
@@ -22,6 +25,14 @@ def test_lcs_strips_filler_and_keeps_doc_verbatim():
     env = assemble_envelope(nodes, doc, "pdf", "gpt-4o")
     assert document_verbatim_in_envelope(env, doc)
     assert "#C" in env and "#D" in env or "DATA_SOURCE_BLOCK" in env
+
+
+def test_compress_instructions_never_strips_vowels():
+    nodes = compress_instructions("Please analyze the attached financial framework document")
+    blob = " ".join(nodes.values())
+    assert "frmwrk" not in blob
+    assert "optmztn" not in blob
+    assert "please" not in nodes["clean_prompt"].lower()
 
 
 def test_claude_xml_envelope():
@@ -95,10 +106,16 @@ def test_its_gate_keeps_something():
 def test_pxpipe_threshold_logic():
     small = "hello " * 10
     assert should_pxpipe(small, "gpt-4o", "gpt-4o", True) is False
-    # huge text
     huge = ("code line with dense json {\"a\":1}\n" * 2000)
     assert should_pxpipe(huge, "gpt-4o", "gpt-4o", True) is True
     assert should_pxpipe(huge, "llama3", "ollama", True) is False
+
+
+def test_ingest_json():
+    data = json.dumps({"hello": "world", "n": 1}).encode()
+    r = ingest_file("data.json", data)
+    assert r.data_type == "json"
+    assert "hello" in r.raw_text
 
 
 def test_follow_attachment_picks_savings_path():
@@ -126,4 +143,3 @@ def test_follow_mode_skips_headroom():
     )
     assert "headroom" not in " ".join(result.stages)
     assert "ALPHA-999" in result.envelope
-

@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-import uvicorn
-
-
-def main() -> None:
-    uvicorn.run("tokenish_engine.app:app", host="127.0.0.1", port=8741, reload=False)
-
+from tokenish_engine.cli import main
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -4,6 +4,7 @@ import re
 
 from tokenish_engine.meters.tokens import count_tokens
 
+# {3,} (not {4,}): 3-letter stubs like tkn/Bld/tht dominate vowel-stripped text.
 _VOWEL_STRIP_HINT = re.compile(r"\b[b-df-hj-np-tv-z]{3,}\b", re.I)
 
 
@@ -19,10 +20,11 @@ def reject_char_shorthand(text: str) -> bool:
         for w in words
         if _VOWEL_STRIP_HINT.fullmatch(w) and not re.search(r"[aeiouy]", w, re.I)
     )
-    return strippedish / max(1, len(words)) >= 0.35
+    return strippedish / len(words) >= 0.35
 
 
 def apply_if_cheaper(before: str, after: str) -> str:
+    """Keep after only when it uses strictly fewer tokenizer tokens."""
     if count_tokens(after) < count_tokens(before):
         return after
     return before

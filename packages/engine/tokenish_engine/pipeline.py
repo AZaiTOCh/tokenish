@@ -10,6 +10,8 @@ from tokenish_engine.compile import (
     pick_cheapest_envelope,
     wants_instruction_following,
 )
+from tokenish_engine.compile.format_rewrite import maybe_tabular_cheaper
+from tokenish_engine.compile.tokenizer_gate import apply_if_cheaper, reject_char_shorthand
 from tokenish_engine.compress import compress_context, maybe_hi0_json_block
 from tokenish_engine.config import settings
 from tokenish_engine.ingest import IngestResult, ingest_file, merge_ingests
@@ -60,6 +62,13 @@ def optimize(
 
     has_attachment = bool(raw_doc.strip() or image_b64)
     follow_mode = wants_instruction_following(prompt, has_attachment and bool(raw_doc.strip()))
+
+    if raw_doc and not follow_mode and (data_type == "json" or stripped.startswith("[")):
+        rewritten, fmt_applied = maybe_tabular_cheaper(raw_doc)
+        if fmt_applied:
+            raw_doc = rewritten
+            data_type = "csv"
+            stages.append("format_csv")
 
     if use_headroom and not follow_mode and data_type in {"log", "txt", "csv", "pdf"} and len(raw_doc) > 4000:
         compressed, applied, stage = compress_context(raw_doc)
@@ -190,19 +199,39 @@ def optimize(
         else baseline_prompt(prompt, original_doc)
     )
 
+    if reject_char_shorthand(envelope):
+        envelope = baseline
+        stages.append("shorthand_rejected")
+    gated_envelope = apply_if_cheaper(baseline, envelope)
+    if gated_envelope != envelope:
+        stages.append("tokenizer_gate")
+        envelope = gated_envelope
+
+    if px_applied and px_pointer and px_pointer not in envelope:
+        # Text path won; do not also send the packed image.
+        image_b64 = None
+        image_mime = None
+        px_applied = False
+        px_surcharge = 0
+        stages.append("pxpipe_dropped")
+
     if not px_applied and not kiosk_blocked and raw_doc:
         if not document_verbatim_in_envelope(envelope, raw_doc):
-            raise RuntimeError("Split-Execution violation: document text missing from envelope")
+            # Cheapest path may have been rejected; fall back to bare verbatim.
+            envelope = apply_if_cheaper(baseline, f"{prompt.strip()}\n\n{raw_doc}")
+            if raw_doc not in envelope:
+                envelope = baseline
+            stages.append("verbatim_fallback")
 
     tokex = compute_tokex(
         baseline_text=baseline,
         optimized_text=envelope,
         stages=stages,
-        pxpipe_image_tokens=px_surcharge,
+        pxpipe_image_tokens=px_surcharge if px_applied else 0,
         fact_notes=[
             "TOTAL_TOKEX = tokens(naive prompt + raw attachment)",
             "TOKEX_THIS_RUN = tokens(optimized envelope)"
-            + (f" + pxpipe_image({px_surcharge})" if px_surcharge else ""),
+            + (f" + pxpipe_image({px_surcharge})" if px_surcharge and px_applied else ""),
             "SAVED_TOKEX = max(0, TOTAL_TOKEX - TOKEX_THIS_RUN)",
         ],
     )

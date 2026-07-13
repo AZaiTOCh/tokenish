@@ -57,6 +57,22 @@
       </div>
     </main>
   </div>
+  <div id="keyModal" class="modal" hidden>
+    <div class="modal-card">
+      <h2>set up API keys</h2>
+      <p>Paste at least one key to start. Saved under <code>~/.tokenish</code>.</p>
+      <label>Gemini API key</label>
+      <input id="keyGemini" type="password" placeholder="GEMINI_API_KEY" autocomplete="off" />
+      <label>OpenAI / ChatGPT key</label>
+      <input id="keyOpenAI" type="password" placeholder="GPT_TOKENISH / OPENAI_API_KEY" autocomplete="off" />
+      <label>OpenRouter key (optional)</label>
+      <input id="keyOpenRouter" type="password" placeholder="OPENROUTER_API_KEY" autocomplete="off" />
+      <div class="modal-actions">
+        <button class="btn" id="keySkip">skip for now</button>
+        <button class="btn primary" id="keySave">save & continue</button>
+      </div>
+    </div>
+  </div>
   <script src="/ui/app.js"></script>
 </body>
 </html>

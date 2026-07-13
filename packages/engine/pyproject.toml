@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tokenish-engine"
-version = "0.1.0"
-description = "Tokenish Split-Execution optimizer engine"
+name = "tokenish"
+version = "0.2.0"
+description = "Local token optimizer daemon — Ollama-simple install"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
@@ -25,15 +25,19 @@ dependencies = [
 
 [project.optional-dependencies]
 ocr = ["pytesseract>=0.3.10", "opencv-python-headless>=4.8.0"]
-dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0"]
-all = ["tokenish-engine[ocr,dev]"]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "pyinstaller>=6.0.0"]
+all = ["tokenish[ocr,dev]"]
 
 [project.scripts]
-tokenish-engine = "tokenish_engine.__main__:main"
+tokenish = "tokenish_engine.cli:main"
+tokenish-engine = "tokenish_engine.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["tokenish_engine*"]
+
+[tool.setuptools.package-data]
+tokenish_engine = ["static/*", "routing.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
