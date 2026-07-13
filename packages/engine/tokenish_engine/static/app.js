@@ -9,6 +9,7 @@ const providerSelect = document.getElementById("provider");
 const threadListEl = document.getElementById("threadList");
 
 const STORE_KEY = "tokenish.threads.v2";
+const MUMBLZ_REV = "clarity-v2";
 const WELCOME = "Attach a pdf, docx, xlsx, csv, or image. tokenish optimizes every send automatically.";
 
 const DEFAULT_MODELS = [
@@ -407,15 +408,20 @@ async function refreshThreadTitle(thread, { useLlm = false } = {}) {
   }
 }
 
-async function retitleAllThreads() {
+async function retitleAllThreads({ force = false } = {}) {
+  const rev = localStorage.getItem("tokenish.mumblz.rev");
+  const mustForce = force || rev !== MUMBLZ_REV;
   for (const th of threads) {
     const msgs = (th.messages || []).filter(
       (m) => (m.role === "user" || m.role === "assistant") && m.content && m.content !== WELCOME,
     );
     if (msgs.length < 2) continue;
-    if (!looksProvisionalTitle(th.title)) continue;
+    if (!mustForce && !looksProvisionalTitle(th.title)) continue;
     await refreshThreadTitle(th, { useLlm: false });
   }
+  localStorage.setItem("tokenish.mumblz.rev", MUMBLZ_REV);
+  saveStore();
+  renderThreadList();
 }
 
 function formatThreadWhen(ts) {
@@ -784,6 +790,6 @@ document.getElementById("sideKeySave")?.addEventListener("click", () => handleKe
   fillModels(DEFAULT_MODELS);
   loadProviders();
   maybeShowKeyWizard();
-  // Mumblz: rename old titles → vowel-stripped 3-word labels.
-  retitleAllThreads();
+  // Mumblz: force re-title when agent revision changes.
+  retitleAllThreads({ force: true });
 })();
