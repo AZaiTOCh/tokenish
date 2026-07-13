@@ -310,6 +310,62 @@ select, input[type="text"], input[type="password"] {
   padding: 2px 0;
 }
 .bubble .body { margin: 0; }
+.msg-attachments {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e4e4e7;
+}
+.msg-attach-summary {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-bottom: 6px;
+  text-transform: lowercase;
+}
+.msg-attach-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.msg-attach {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 88px;
+  min-width: 88px;
+}
+.msg-attach img {
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  display: block;
+}
+.msg-attach.file {
+  width: auto;
+  min-width: 120px;
+  max-width: 180px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.msg-attach-badge {
+  color: var(--muted);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+.msg-attach-name {
+  color: #52525b;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
 .bubble.thinking {
   padding: 6px 0;
   border: none;

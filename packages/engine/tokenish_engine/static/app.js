@@ -304,17 +304,104 @@ function accumulateTokex(thread, report) {
   lifetime.sends.push(send);
 }
 
-function addBubble(role, content) {
+function addBubble(role, content, attachments) {
   const div = document.createElement("div");
   div.className = `bubble ${role}`;
   if (role === "user") {
-    div.innerHTML = `<div class="body">${escapeHtml(content)}</div>`;
+    const attachHtml = renderMessageAttachments(attachments);
+    div.innerHTML =
+      `<div class="body">${escapeHtml(content)}</div>` +
+      attachHtml;
   } else {
     div.innerHTML = `<div class="body">${formatReply(content)}</div>`;
   }
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
   return div;
+}
+
+function renderMessageAttachments(attachments) {
+  const list = Array.isArray(attachments) ? attachments.filter(Boolean) : [];
+  if (!list.length) return "";
+  const imgs = list.filter((a) => a.kind === "image").length;
+  const filesN = list.length - imgs;
+  const summaryParts = [];
+  if (imgs) summaryParts.push(`${imgs} image${imgs === 1 ? "" : "s"}`);
+  if (filesN) summaryParts.push(`${filesN} file${filesN === 1 ? "" : "s"}`);
+  const summary = summaryParts.join(" · ") || `${list.length} attached`;
+  const cards = list
+    .map((a) => {
+      const name = escapeHtml(a.name || "attachment");
+      if (a.kind === "image" && a.thumb) {
+        return (
+          `<div class="msg-attach image" title="${name}">` +
+          `<img src="${a.thumb}" alt="${name}" />` +
+          `<span class="msg-attach-name">${name}</span>` +
+          `</div>`
+        );
+      }
+      const kind = escapeHtml(a.kind || "file");
+      return (
+        `<div class="msg-attach file" title="${name}">` +
+        `<span class="msg-attach-badge">${kind}</span>` +
+        `<span class="msg-attach-name">${name}</span>` +
+        `</div>`
+      );
+    })
+    .join("");
+  return (
+    `<div class="msg-attachments" aria-label="uploaded attachments">` +
+    `<div class="msg-attach-summary">${escapeHtml(summary)} uploaded</div>` +
+    `<div class="msg-attach-grid">${cards}</div>` +
+    `</div>`
+  );
+}
+
+async function makeThumbDataUrl(file, maxEdge = 96) {
+  if (!file || !isImageFile(file)) return null;
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.72));
+      } catch {
+        resolve(null);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+async function snapshotAttachments(fileList) {
+  const out = [];
+  for (const f of fileList || []) {
+    const kind = isImageFile(f) ? "image" : "file";
+    const item = {
+      name: f.name,
+      kind,
+      size: f.size || 0,
+    };
+    if (kind === "image") {
+      item.thumb = await makeThumbDataUrl(f);
+    }
+    out.push(item);
+  }
+  return out;
 }
 
 function makeTknshLoader() {
@@ -561,7 +648,7 @@ function renderThreadList() {
 function renderMessages(thread) {
   messagesEl.innerHTML = "";
   for (const m of thread.messages || []) {
-    addBubble(m.role, m.content);
+    addBubble(m.role, m.content, m.attachments);
   }
   renderTokexPanel(thread);
 }
@@ -681,8 +768,9 @@ async function send() {
     thread.title = titleFromPrompt(prompt);
   }
 
-  addBubble("user", prompt);
-  thread.messages.push({ role: "user", content: prompt });
+  const uploaded = await snapshotAttachments(files);
+  addBubble("user", prompt, uploaded);
+  thread.messages.push({ role: "user", content: prompt, attachments: uploaded });
   thread.updatedAt = Date.now();
   promptEl.value = "";
   renderThreadList();
@@ -700,6 +788,11 @@ async function send() {
   const pageRange = document.getElementById("pageRange").value.trim();
   if (pageRange) fd.append("page_range", pageRange);
   for (const f of files) fd.append("files", f);
+
+  // Clear composer chips once they've been stamped into the chat turn.
+  files = [];
+  fileInput.value = "";
+  renderAttachments();
 
   const loader = makeTknshLoader();
   let bubble = null;
@@ -726,10 +819,6 @@ async function send() {
           renderTokexPanel(thread);
           saveStore();
           if (evt.attachment_warning) showError(evt.attachment_warning);
-          else if (evt.images_sent != null && countImages(files) > 0) {
-            // Clear prior attach warnings once server confirms image count.
-            if (!evt.attachment_warning) showError("");
-          }
         } else if (evt.type === "delta") {
           if (!bubble) {
             loader.remove();
@@ -746,9 +835,6 @@ async function send() {
     if (!assistant) throw new Error("empty reply — try another model or OpenRouter key");
     thread.messages.push({ role: "assistant", content: assistant });
     thread.updatedAt = Date.now();
-    files = [];
-    fileInput.value = "";
-    renderAttachments();
     renderThreadList();
     saveStore();
     // Mumblz: instant local 2-word title, then optional LLM polish.
