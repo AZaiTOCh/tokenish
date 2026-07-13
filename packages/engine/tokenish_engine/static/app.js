@@ -240,7 +240,25 @@ function titleCaseWord(w) {
   return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
 }
 
-/** Local 3-word title (works even if /title is unreachable / old JS cache). */
+/** Mumblz: strip vowels from a word (keep ≥1 char). */
+function mumblzWord(word) {
+  const parts = String(word || "").split("-");
+  return parts
+    .map((part) => {
+      let core = part.replace(/[aeiouAEIOU]/g, "");
+      if (!core) core = part.slice(0, 1);
+      return core ? core.charAt(0).toUpperCase() + core.slice(1) : core;
+    })
+    .join("-");
+}
+
+function mumblzTitle(title) {
+  const parts = String(title || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "Frsh Tkn Thrd";
+  return parts.slice(0, 3).map(mumblzWord).join(" ");
+}
+
+/** Mumblz local 3-word title (then vowel-stripped). */
 function interpretTitleLocal(messages) {
   const stop = new Set([
     "the","a","an","and","or","to","of","in","on","for","with","as","by","at","from",
@@ -253,7 +271,7 @@ function interpretTitleLocal(messages) {
     .map((m) => String(m.content || ""))
     .join("\n")
     .slice(0, 5000);
-  if (!blob.trim()) return "Fresh Token Thread";
+  if (!blob.trim()) return mumblzTitle("Fresh Token Thread");
 
   const rules = [
     [/unicombinator|freefactorial|freesar|g[- ]?triangle/i, "Combinatorics"],
@@ -304,20 +322,23 @@ function interpretTitleLocal(messages) {
     push(w);
   }
   while (words.length < 3) words.push(["Alpha", "Signal", "Thread"][words.length]);
-  return words.slice(0, 3).join(" ");
+  return mumblzTitle(words.slice(0, 3).join(" "));
 }
 
 function looksProvisionalTitle(title) {
   const t = String(title || "").trim();
-  if (!t || t === "New chat" || t === "Fresh Token Thread") return true;
+  if (!t || t === "New chat" || t === "Fresh Token Thread" || t === "Frsh Tkn Thrd") return true;
   if (t.includes("…") || t.includes("...")) return true;
   if (t.length > 36) return true;
   const parts = t.split(/\s+/).filter(Boolean);
-  return parts.length !== 3;
+  if (parts.length !== 3) return true;
+  // Still has vowels → not yet Mumblz'd
+  if (/[aeiouAEIOU]/.test(t)) return true;
+  return false;
 }
 
 function applyThreadTitle(thread, next) {
-  const title = String(next || "").trim();
+  const title = mumblzTitle(String(next || "").trim());
   if (!thread || !title) return false;
   if (title === thread.title) return false;
   thread.title = title;
@@ -336,13 +357,13 @@ async function refreshThreadTitle(thread, { useLlm = false } = {}) {
     .map((m) => ({ role: m.role, content: String(m.content || "").slice(0, 2000) }));
   if (messages.length < 2) return;
 
-  // Always apply local instantly so History updates even if /title lags.
+  // Mumblz local instantly.
   if (!useLlm) {
     applyThreadTitle(thread, interpretTitleLocal(messages));
   }
 
   try {
-    const res = await fetch("/title", {
+    const res = await fetch("/mumblz", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages, use_llm: !!useLlm }),
@@ -350,7 +371,7 @@ async function refreshThreadTitle(thread, { useLlm = false } = {}) {
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.title) applyThreadTitle(thread, data.title);
   } catch {
-    // local title already applied when !useLlm
+    // local Mumblz title already applied when !useLlm
   }
 }
 
@@ -731,6 +752,6 @@ document.getElementById("sideKeySave")?.addEventListener("click", () => handleKe
   fillModels(DEFAULT_MODELS);
   loadProviders();
   maybeShowKeyWizard();
-  // Rename old truncated prompt titles → 3-word interpreter titles.
+  // Mumblz: rename old titles → vowel-stripped 3-word labels.
   retitleAllThreads();
 })();

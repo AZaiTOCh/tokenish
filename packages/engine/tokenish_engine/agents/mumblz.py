@@ -1,7 +1,8 @@
 """
-Thread Title Interpreter — turns a full dialog into a crisp 3-word History title.
+Mumblz — History title agent.
 
-Primary path is local (fast, free, offline). Optional LLM polish when keys work.
+Reads a full dialog, invents a crisp 3-word title, then strips vowels
+(Mumblz "mumble") for the History label.
 """
 
 from __future__ import annotations
@@ -30,7 +31,6 @@ _STOP = {
     "everything", "something", "anything", "page", "pages", "part", "parts",
 }
 
-# Domain cues → cool title nouns (priority scored)
 _TOPIC_MAP: list[tuple[re.Pattern[str], str, int]] = [
     (re.compile(r"unicombinator|freefactorial|freesar|superfreefactorial|g[- ]?triangle", re.I), "Combinatorics", 12),
     (re.compile(r"\bgveb\b|waldo|raphael|bosch|visual exhaustion|grounded visual", re.I), "Benchmark", 12),
@@ -63,9 +63,29 @@ _STYLE_WORDS = {
     "spectral", "nocturne", "chrome", "verdant", "crimson", "azure", "amber",
 }
 
+_VOWELS = set("aeiouAEIOU")
 
-def _words(text: str) -> list[str]:
-    return re.findall(r"[a-zA-Z][a-zA-Z0-9'-]{2,}", text or "")
+
+def strip_vowels_word(word: str) -> str:
+    """Mumblz mumble: drop vowels; keep at least one character."""
+    if not word:
+        return word
+    parts = word.split("-") if "-" in word else [word]
+    out: list[str] = []
+    for part in parts:
+        core = "".join(c for c in part if c not in _VOWELS)
+        if not core:
+            core = part[:1]
+        out.append(core[0].upper() + core[1:] if core else core)
+    return "-".join(out)
+
+
+def mumblz_title(title: str) -> str:
+    """Apply vowel stripping to each word of a 3-word title."""
+    parts = [p for p in re.split(r"\s+", (title or "").strip()) if p]
+    if not parts:
+        return "Frsh Tkn Thrd"
+    return " ".join(strip_vowels_word(p) for p in parts[:3])
 
 
 def _title_case(word: str) -> str:
@@ -76,6 +96,10 @@ def _title_case(word: str) -> str:
     return word[:1].upper() + word[1:].lower()
 
 
+def _words(text: str) -> list[str]:
+    return re.findall(r"[a-zA-Z][a-zA-Z0-9'-]{2,}", text or "")
+
+
 def _dialog_blob(messages: list[dict[str, str]]) -> str:
     parts: list[str] = []
     for m in messages or []:
@@ -84,7 +108,6 @@ def _dialog_blob(messages: list[dict[str, str]]) -> str:
         if not content or content.startswith("Attach a pdf"):
             continue
         if role in {"user", "assistant"}:
-            # Prefer user goals + early assistant substance
             parts.append(content[:1200] if role == "user" else content[:800])
     return "\n".join(parts)
 
@@ -117,16 +140,11 @@ def _keyword_pool(blob: str) -> list[str]:
             continue
         weight = 2 if low in _STYLE_WORDS else 1
         counts[low] += weight
-    # Prefer distinctive content words
-    ranked = [w for w, _n in counts.most_common(24)]
-    return ranked
+    return [w for w, _n in counts.most_common(24)]
 
 
-def interpret_thread_title(messages: list[dict[str, str]]) -> str:
-    """
-    Return exactly three Title-Case words summarizing the dialog.
-    Always succeeds with a sensible fallback.
-    """
+def _three_word_clear(messages: list[dict[str, str]]) -> str:
+    """Clear (voweled) three-word title before Mumblz mumble."""
     blob = _dialog_blob(messages)
     if not blob.strip():
         return "Fresh Token Thread"
@@ -134,7 +152,6 @@ def interpret_thread_title(messages: list[dict[str, str]]) -> str:
     topics = _pick_topics(blob)
     tasks = _pick_tasks(blob)
     keys = _keyword_pool(blob)
-
     words: list[str] = []
 
     def push(w: str) -> None:
@@ -145,11 +162,9 @@ def interpret_thread_title(messages: list[dict[str, str]]) -> str:
             return
         words.append(tw)
 
-    # Structure: [Subject] [Flavor] [Act]  e.g. Neon Cityscape Review
     if topics:
         push(topics[0][0])
     if keys:
-        # flavor word not already used
         for k in keys:
             if k.lower() not in {w.lower() for w in words} and k.lower() not in {
                 t[0].lower() for t in topics
@@ -161,7 +176,6 @@ def interpret_thread_title(messages: list[dict[str, str]]) -> str:
     elif topics and len(topics) > 1:
         push(topics[1][0])
 
-    # Fill remaining slots from keywords / defaults
     defaults = ["Insight", "Session", "Thread", "Study", "Focus", "Signal"]
     for k in keys + defaults:
         if len(words) >= 3:
@@ -177,29 +191,39 @@ def interpret_thread_title(messages: list[dict[str, str]]) -> str:
 def normalize_three_word_title(raw: str, fallback: str = "Fresh Token Thread") -> str:
     cleaned = re.sub(r"[\"'`#*_]+", "", (raw or "").strip())
     cleaned = re.sub(r"\s+", " ", cleaned)
-    # Take first line only
     cleaned = cleaned.split("\n", 1)[0].strip()
     parts = [p for p in re.split(r"\s+", cleaned) if p]
     if len(parts) >= 3:
-        return " ".join(_title_case(p) for p in parts[:3])
-    if len(parts) == 2:
-        return f"{_title_case(parts[0])} {_title_case(parts[1])} Study"
-    if len(parts) == 1:
-        return f"{_title_case(parts[0])} Token Thread"
-    return fallback
+        clear = " ".join(_title_case(p) for p in parts[:3])
+    elif len(parts) == 2:
+        clear = f"{_title_case(parts[0])} {_title_case(parts[1])} Study"
+    elif len(parts) == 1:
+        clear = f"{_title_case(parts[0])} Token Thread"
+    else:
+        clear = fallback
+    return mumblz_title(clear)
 
 
-async def interpret_thread_title_llm(messages: list[dict[str, str]]) -> str | None:
-    """Optional LLM polish — returns None on failure so caller can use local."""
-    local = interpret_thread_title(messages)
+def mumblz_name_thread(messages: list[dict[str, str]]) -> str:
+    """Mumblz: dialog → 3-word title → vowel-stripped History label."""
+    return mumblz_title(_three_word_clear(messages))
+
+
+# Back-compat aliases
+interpret_thread_title = mumblz_name_thread
+
+
+async def mumblz_name_thread_llm(messages: list[dict[str, str]]) -> str | None:
+    """Optional LLM polish, then Mumblz vowel strip. None on failure."""
+    local_clear = _three_word_clear(messages)
     blob = _dialog_blob(messages)
     if len(blob) < 40:
-        return local
+        return mumblz_title(local_clear)
     prompt = (
         "Read this chat and reply with ONLY three words: a punchy Title Case "
         "history title (no quotes, no punctuation, no explanation).\n\n"
         f"CHAT:\n{blob[:3500]}\n\n"
-        f"Local draft (improve if needed): {local}"
+        f"Local draft (improve if needed): {local_clear}"
     )
     try:
         from tokenish_engine.dispatch import chat_complete, resolve_model, resolve_provider
@@ -212,6 +236,9 @@ async def interpret_thread_title_llm(messages: list[dict[str, str]]) -> str | No
             envelope=prompt,
             history=[],
         )
-        return normalize_three_word_title(text, fallback=local)
+        return normalize_three_word_title(text, fallback=local_clear)
     except Exception:
         return None
+
+
+interpret_thread_title_llm = mumblz_name_thread_llm
