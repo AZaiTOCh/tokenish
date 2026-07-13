@@ -15,14 +15,29 @@ def test_follow_instructions_is_follow_mode():
     ) is True
 
 
-def test_dedupe_drops_page_break_clones():
-    block = "Grounded Visual Exhaustion Benchmark prompt body with unique marker ZZZ-42.\n" * 20
-    doc = f"{block}\n--- PAGE BREAK ---\n{block}\n--- PAGE BREAK ---\n{block}"
+def test_dedupe_near_duplicate_pages_with_page_numbers():
+    body = (
+        "Grounded Visual Exhaustion Benchmark v1.0. "
+        "Analyze Bosch Waldo Raphael exhaustively. Never guess. Unknown if uncertain. "
+    ) * 25
+    doc = (
+        f"{body}\nPage 1\n--- PAGE BREAK ---\n"
+        f"{body}\nPage 2\n--- PAGE BREAK ---\n"
+        f"{body}\nPage 3\n"
+    )
     out, dropped, stage = dedupe_document_sections(doc)
     assert dropped >= 2
-    assert "dedupe_drop_" in stage
+    assert count_tokens(out) < count_tokens(doc) * 0.5
+    assert "Bosch" in out
+
+
+def test_dedupe_form_feed_pages():
+    body = ("GVEB benchmark grounded visual exhaustion. " * 40)
+    doc = f"{body}\f{body}\f{body}"
+    out, dropped, stage = dedupe_document_sections(doc)
+    assert dropped >= 2
     assert count_tokens(out) < count_tokens(doc)
-    assert "ZZZ-42" in out
+
 
 
 def test_assess_duplicate_doc_saves_tokens():
