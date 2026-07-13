@@ -56,6 +56,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-size: 0.72rem;
   letter-spacing: 0.06em;
   margin: 8px 6px 4px;
+  text-transform: lowercase;
+}
+/* Right column keeps its existing capitalization (API keys, Gemini, etc.). */
+.settings-sidebar .section-label,
+.settings-sidebar .tiny,
+.settings-sidebar label {
+  text-transform: none;
 }
 .btn.full { width: 100%; }
 .btn.new-chat,
@@ -91,6 +98,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-size: 0.82rem;
   line-height: 1.3;
   font-weight: 500;
+  color: var(--muted);
+  text-transform: lowercase;
 }
 .thread-actions { position: relative; flex-shrink: 0; }
 .menu-btn {
@@ -210,8 +219,8 @@ select, input[type="text"], input[type="password"] {
 .tokex-label {
   font-family: "Arimo", system-ui, sans-serif;
   font-size: 1.05rem;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
   font-weight: 700;
   flex: 1;
   line-height: 1.2;
@@ -242,6 +251,7 @@ select, input[type="text"], input[type="password"] {
   font-weight: 700;
   color: #18181b;
   margin: 4px 0 2px;
+  text-transform: lowercase;
 }
 .tokex-panel.lifetime .tokex-big { color: #14532d; }
 .tokex-panel.chat .tokex-big { color: #7f1d1d; }
@@ -264,8 +274,8 @@ select, input[type="text"], input[type="password"] {
   display: block;
   color: #52525b;
   font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
   margin-bottom: 2px;
   font-weight: 600;
 }
@@ -363,9 +373,9 @@ textarea {
   width: min(420px, 100%); background: #fff; border: 1px solid var(--border);
   border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 8px;
 }
-.modal-card h2 { margin: 0; font-size: 1.1rem; }
+.modal-card h2 { margin: 0; font-size: 1.1rem; text-transform: lowercase; }
 .modal-card p { margin: 0 0 8px; color: var(--muted); font-size: 0.9rem; }
-.modal-card label { font-size: 0.8rem; color: var(--muted); }
+.modal-card label { font-size: 0.8rem; color: var(--muted); text-transform: lowercase; }
 .modal-card input {
   border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: #fff;
 }
