@@ -3,6 +3,8 @@ from tokenish_engine.compile.lcs import (
     baseline_prompt,
     compress_instructions,
     document_verbatim_in_envelope,
+    instruction_follow_envelope,
+    wants_instruction_following,
 )
 
 __all__ = [
@@ -10,4 +12,6 @@ __all__ = [
     "baseline_prompt",
     "compress_instructions",
     "document_verbatim_in_envelope",
+    "instruction_follow_envelope",
+    "wants_instruction_following",
 ]
