@@ -235,6 +235,33 @@ function titleFromPrompt(prompt) {
   return t.length > 42 ? `${t.slice(0, 42)}…` : t;
 }
 
+async function refreshThreadTitle(thread, { useLlm = true } = {}) {
+  if (!thread) return;
+  const messages = (thread.messages || [])
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .filter((m) => m.content && m.content !== WELCOME)
+    .map((m) => ({ role: m.role, content: String(m.content || "").slice(0, 2000) }));
+  if (messages.length < 2) return;
+  try {
+    const res = await fetch("/title", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, use_llm: useLlm }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.title) return;
+    const next = String(data.title).trim();
+    if (!next || next === thread.title) return;
+    thread.title = next;
+    thread.updatedAt = Date.now();
+    renderThreadList();
+    renderTokexPanel(thread);
+    saveStore();
+  } catch {
+    // keep provisional title
+  }
+}
+
 function formatThreadWhen(ts) {
   try {
     return new Date(ts || Date.now()).toLocaleString(undefined, {
@@ -475,6 +502,9 @@ async function send() {
     renderAttachments();
     renderThreadList();
     saveStore();
+    // Interpreter: instant local 3-word title, then optional LLM polish.
+    await refreshThreadTitle(thread, { useLlm: false });
+    refreshThreadTitle(thread, { useLlm: true });
   } catch (e) {
     loader.remove();
     showError(e.message || String(e));

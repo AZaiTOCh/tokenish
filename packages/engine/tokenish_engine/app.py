@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from tokenish_engine import __version__
+from tokenish_engine.agents import interpret_thread_title, interpret_thread_title_llm, normalize_three_word_title
 from tokenish_engine.dispatch import chat_complete, chat_stream, preflight_full, resolve_model, resolve_provider
 from tokenish_engine.dispatch.providers import StreamSession
 from tokenish_engine.history import compress_history
@@ -46,12 +47,32 @@ class KeysPayload(BaseModel):
     OPENROUTER_API_KEY: str | None = None
 
 
+class TitlePayload(BaseModel):
+    messages: list[dict[str, str]] = []
+    use_llm: bool = False
+
+
 @app.get("/")
 async def root_ui():
     index = _STATIC / "index.html"
     if index.is_file():
         return FileResponse(index)
     return JSONResponse({"status": "ok", "version": __version__})
+
+
+@app.post("/title")
+async def title_thread(payload: TitlePayload) -> dict[str, Any]:
+    """Interpreter agent: whole-dialog → three-word History title."""
+    apply_saved_keys_to_environ()
+    local = interpret_thread_title(payload.messages)
+    title = local
+    source = "local"
+    if payload.use_llm:
+        polished = await interpret_thread_title_llm(payload.messages)
+        if polished:
+            title = normalize_three_word_title(polished, fallback=local)
+            source = "llm" if title != local else "local"
+    return {"title": title, "local": local, "source": source}
 
 
 @app.get("/health")
