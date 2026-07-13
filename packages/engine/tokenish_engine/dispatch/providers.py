@@ -21,6 +21,81 @@ from tokenish_engine.models import ProviderStatus
 
 _ROUTING_PATH = Path(__file__).resolve().parent.parent / "routing.json"
 
+# Per-model cooldowns (provider/model -> unix time until retry). Do NOT kill whole providers.
+_MODEL_COOLDOWN: dict[str, float] = {}
+_COOLDOWN_SECS = 90.0
+
+_OR_SKIP_SUBSTRINGS = (
+    "lyria",
+    "content-safety",
+    "whisper",
+    "tts",
+    "embed",
+    "moderation",
+    "hy3",
+    "-vl:",
+    "vl:",
+)
+
+
+def _cooldown_key(provider: str, model: str) -> str:
+    return f"{provider}/{model}"
+
+
+def _model_on_cooldown(provider: str, model: str) -> bool:
+    import time
+
+    until = _MODEL_COOLDOWN.get(_cooldown_key(provider, model), 0.0)
+    return time.time() < until
+
+
+def _set_model_cooldown(provider: str, model: str, seconds: float | None = None) -> None:
+    import time
+
+    _MODEL_COOLDOWN[_cooldown_key(provider, model)] = time.time() + (seconds or _COOLDOWN_SECS)
+
+
+def _openrouter_roster_models() -> list[str]:
+    """Chat-capable free models from routing roster, preferred first."""
+    preferred = [
+        "google/gemma-4-31b-it:free",
+        "google/gemma-4-26b-a4b-it:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "qwen/qwen3-coder:free",
+        "qwen/qwen3-next-80b-a3b-instruct:free",
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+        "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+        "nousresearch/hermes-3-llama-3.1-405b:free",
+        settings.openrouter_free_model,
+    ]
+    roster: list[str] = []
+    try:
+        data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
+        roster = list(data.get("openrouter_free_roster", {}).get("verified_active", []) or [])
+    except Exception:
+        roster = []
+    merged = list(dict.fromkeys([*preferred, *roster]))
+    out: list[str] = []
+    for mid in merged:
+        low = mid.lower()
+        # Meta-router picks random free upstream (often rate-limited); use concrete IDs.
+        if mid.strip() == "openrouter/free":
+            continue
+        if any(s in low for s in _OR_SKIP_SUBSTRINGS):
+            continue
+        if _model_on_cooldown("openrouter", mid):
+            continue
+        out.append(mid)
+    if not out:
+        # Last resort: cooled models + meta-router
+        for mid in merged:
+            if mid.strip() == "openrouter/free" or not _model_on_cooldown("openrouter", mid):
+                out.append(mid)
+                if len(out) >= 3:
+                    break
+    return out or [settings.openrouter_free_model]
+
 
 @dataclass
 class StreamSession:
@@ -145,8 +220,55 @@ async def preflight_full() -> tuple[list[ProviderStatus], dict]:
     return await run_preflight()
 
 
-def _mark_provider_error(name: str, err: str) -> None:
-    if "402" not in err and "429" not in err and "quota" not in err.lower() and "credit" not in err.lower():
+def _mark_provider_error(name: str, err: str, *, model: str | None = None) -> None:
+    """
+    Record failures without nuking the whole provider on a single free-model 429.
+    OpenRouter: cooldown that model only. Gemini 503: transient, keep active.
+    Gemini hard quota 429: mark inactive until key/billing recovers.
+    """
+    err_l = (err or "").lower()
+    is_429 = "429" in err_l or "rate" in err_l
+    is_503 = "503" in err_l or "high demand" in err_l
+    is_402 = "402" in err_l or "credit" in err_l
+
+    if name == "openrouter":
+        if model:
+            _set_model_cooldown("openrouter", model, 120 if is_429 or is_503 else 60)
+        # Keep provider active so other free models can be tried.
+        try:
+            data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
+            prov = data.setdefault("providers", {}).setdefault("openrouter", {})
+            prov["is_active"] = True
+            prov["error"] = (f"{model}: {err}" if model else err)[:160]
+            _ROUTING_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        except Exception:
+            pass
+        return
+
+    if name == "gemini":
+        if is_503:
+            _set_model_cooldown("gemini", settings.gemini_model, 45)
+            try:
+                data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
+                prov = data.setdefault("providers", {}).setdefault("gemini", {})
+                prov["is_active"] = True  # key still valid; spike is transient
+                prov["error"] = err[:160]
+                _ROUTING_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+            except Exception:
+                pass
+            return
+        if is_429 or "quota" in err_l:
+            try:
+                data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
+                prov = data.setdefault("providers", {}).setdefault("gemini", {})
+                prov["is_active"] = False
+                prov["error"] = err[:160]
+                _ROUTING_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+            except Exception:
+                pass
+        return
+
+    if not (is_402 or is_429 or "quota" in err_l or "credit" in err_l):
         return
     try:
         data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
@@ -156,6 +278,25 @@ def _mark_provider_error(name: str, err: str) -> None:
         _ROUTING_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     except Exception:
         pass
+
+
+def _provider_usable(name: str) -> bool:
+    """Key present and not hard-disabled (OpenRouter stays usable if keyed)."""
+    if not _provider_has_key(name):
+        return False
+    if name == "openrouter":
+        return True
+    if name == "gemini":
+        # Allow gemini attempt even if last ping said inactive, unless quota error.
+        try:
+            data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
+            err = str(data.get("providers", {}).get("gemini", {}).get("error") or "").lower()
+            if "quota" in err and "429" in err:
+                return False
+        except Exception:
+            pass
+        return True
+    return _provider_active(name)
 
 
 def _completion_body(model: str, messages: list, *, provider: str, stream: bool) -> dict[str, Any]:
@@ -182,32 +323,43 @@ def _fallback_chain(provider: str, model: str) -> list[tuple[str, str]]:
     # Force Gemini requests onto gemini-3.5-flash only (never other Gemini IDs).
     if provider == "gemini" or (model or "").startswith("gemini"):
         provider, model = "gemini", settings.gemini_model
-    chain: list[tuple[str, str]] = [(provider, model)]
-    for prov, mdl in _load_fallbacks():
-        if prov == "gemini":
-            mdl = settings.gemini_model
-        if (prov, mdl) not in chain:
-            chain.append((prov, mdl))
-    if openrouter_key() and ("openrouter", settings.openrouter_free_model) not in chain:
-        chain.append(("openrouter", settings.openrouter_free_model))
-    out: list[tuple[str, str]] = []
-    for p, m in chain:
-        if p == "gemini":
-            if gemini_key():
-                out.append(("gemini", settings.gemini_model))
-            continue
-        if not _provider_has_key(p):
-            continue
-        if _provider_active(p):
-            out.append((p, m))
-    # de-dupe preserving order
+    if provider == "auto":
+        provider, model = "gemini", settings.gemini_model
+
+    chain: list[tuple[str, str]] = []
+    if _provider_usable("gemini") and not _model_on_cooldown("gemini", settings.gemini_model):
+        chain.append(("gemini", settings.gemini_model))
+
+    # Expand OpenRouter into many free chat models (skip cooled-down ones).
+    if openrouter_key():
+        for mid in _openrouter_roster_models()[:10]:
+            item = ("openrouter", mid)
+            if item not in chain:
+                chain.append(item)
+
+    # Honor explicit non-auto request first if usable
+    if provider not in {"auto", "gemini"} and _provider_usable(provider):
+        first = (provider, model)
+        chain = [first] + [x for x in chain if x != first]
+
+    if provider == "gemini" and ("gemini", settings.gemini_model) in chain:
+        # keep gemini first
+        chain = [("gemini", settings.gemini_model)] + [x for x in chain if x[0] != "gemini"]
+
     seen: set[tuple[str, str]] = set()
     uniq: list[tuple[str, str]] = []
-    for item in out:
-        if item not in seen:
-            seen.add(item)
-            uniq.append(item)
-    return uniq or [(provider, model)]
+    for item in chain:
+        if item in seen:
+            continue
+        if _model_on_cooldown(item[0], item[1]):
+            continue
+        seen.add(item)
+        uniq.append(item)
+    if uniq:
+        return uniq
+    if openrouter_key():
+        return [("openrouter", settings.openrouter_free_model)]
+    return [("gemini", settings.gemini_model)]
 
 
 async def chat_complete(
@@ -233,6 +385,7 @@ async def chat_complete(
             )
         except Exception as exc:
             errors.append(f"{prov}/{mdl}: {exc}")
+            _mark_provider_error(prov, str(exc), model=mdl)
             continue
     raise RuntimeError("all providers failed — " + " | ".join(errors[:6]))
 
@@ -267,6 +420,7 @@ async def chat_stream(
     requested = (provider, model)
     chain = _fallback_chain(provider, model)
     last_err = ""
+    errors: list[str] = []
     if chain and chain[0] != requested:
         last_err = _provider_skip_reason(requested[0])
     for prov, mdl in chain:
@@ -315,12 +469,14 @@ async def chat_stream(
             yield text
             return
         except Exception as exc:
-            last_err = f"{prov}: {str(exc)[:120]}"
-            _mark_provider_error(prov, str(exc))
+            last_err = f"{prov}/{mdl}: {str(exc)[:160]}"
+            errors.append(last_err)
+            _mark_provider_error(prov, str(exc), model=mdl)
             if session:
                 session.fallback_reason = last_err
             continue
-    raise RuntimeError("all providers failed during stream" + (f" — {last_err}" if last_err else ""))
+    detail = " | ".join(errors[:5]) if errors else last_err
+    raise RuntimeError("all providers failed during stream" + (f" — {detail}" if detail else ""))
 
 
 def _base_url(provider: str) -> str:
@@ -411,7 +567,7 @@ async def _openai_compatible(
         )
         if r.status_code >= 400:
             err = f"HTTP {r.status_code}: {r.text[:240]}"
-            _mark_provider_error(provider, err)
+            _mark_provider_error(provider, err, model=model)
             raise RuntimeError(err)
         return r.json()["choices"][0]["message"]["content"]
 
@@ -447,7 +603,7 @@ async def _openai_compatible_stream(
             if r.status_code >= 400:
                 body = await r.aread()
                 err = f"HTTP {r.status_code}: {body[:240]!r}"
-                _mark_provider_error(provider, err)
+                _mark_provider_error(provider, err, model=model)
                 raise RuntimeError(err)
             async for line in r.aiter_lines():
                 if not line.startswith("data: "):

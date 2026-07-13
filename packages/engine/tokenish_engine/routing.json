@@ -41,21 +41,21 @@
   },
   "providers": {
     "gemini": {
-      "is_active": false,
+      "is_active": true,
       "models": [
         "gemini-3.5-flash"
       ],
       "model_name": "gemini-3.5-flash",
       "last_ping": "2026-07-13T15:35:38Z",
       "latency_ms": 1693,
-      "error": "gemini HTTP 429: {\n  \"error\": {\n    \"code\": 429,\n    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more informati"
+      "error": ""
     },
     "openrouter": {
-      "is_active": false,
+      "is_active": true,
       "models": [
         "openrouter/free"
       ],
-      "error": "HTTP 429: b'{\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"openai/gpt-oss-120b:free is temporarily rate-limited upstream. Please re"
+      "error": ""
     },
     "groq": {
       "is_active": false,
