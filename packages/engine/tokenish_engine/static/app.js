@@ -258,13 +258,29 @@ function mumblzTitle(title) {
   return parts.slice(0, 3).map(mumblzWord).join(" ");
 }
 
-/** Mumblz local 3-word title (then vowel-stripped). */
+function mumbleClarity(word) {
+  const raw = String(word || "").replace(/[^A-Za-z0-9-]/g, "");
+  if (!raw) return 0;
+  const stub = mumblzWord(raw).replace(/-/g, "");
+  const n = stub.length;
+  if (n <= 1) return 0.05;
+  if (n === 2) return 0.35;
+  let score = n === 3 ? 1.1 : 1.4 + (n - 3) * 0.55;
+  score += new Set(stub.toLowerCase()).size * 0.35;
+  if (stub[0] && raw[0] && stub[0].toLowerCase() === raw[0].toLowerCase()) score += 0.6;
+  const vowels = (raw.match(/[aeiouAEIOU]/g) || []).length;
+  if (vowels / raw.length > 0.45) score *= 0.75;
+  return score;
+}
+
+/** Mumblz local title: pick words that stay clear after vowel strip. */
 function interpretTitleLocal(messages) {
   const stop = new Set([
     "the","a","an","and","or","to","of","in","on","for","with","as","by","at","from",
     "is","are","was","be","this","that","it","i","you","we","my","your","please","want",
     "need","deeply","attached","attachment","document","file","pdf","image","images",
     "then","generate","check","online","sources","everything","page","one","two","three",
+    "color","colour","brief","neon",
   ]);
   const blob = (messages || [])
     .filter((m) => m && (m.role === "user" || m.role === "assistant"))
@@ -274,55 +290,71 @@ function interpretTitleLocal(messages) {
   if (!blob.trim()) return mumblzTitle("Fresh Token Thread");
 
   const rules = [
-    [/unicombinator|freefactorial|freesar|g[- ]?triangle/i, "Combinatorics"],
-    [/gveb|waldo|raphael|bosch|visual exhaustion/i, "Benchmark"],
-    [/palette|color|colour|neon|painterly|brushstroke/i, "Palette"],
-    [/peer review|adversar|critique/i, "Critique"],
-    [/fact[- ]?check|vetting|validity/i, "Vetting"],
-    [/exec(utive)?\s*summary|brief/i, "Brief"],
-    [/animation|cel[- ]?shad|cartoon/i, "Animation"],
-    [/urban|street|parking|cityscape/i, "Cityscape"],
-    [/quantum|cryptograph/i, "Quantum"],
-    [/assess|analy/i, "Assessment"],
+    [/unicombinator|freefactorial|freesar|g[- ]?triangle/i, "Combinatorics", 12],
+    [/gveb|waldo|raphael|bosch|visual exhaustion/i, "Benchmark", 12],
+    [/palette|color|colour|painterly|brushstroke|chromatic/i, "Chromatic", 10],
+    [/peer review|adversar|critique/i, "Critique", 9],
+    [/fact[- ]?check|vetting|validity/i, "Vetting", 8],
+    [/exec(utive)?\s*summary|brief/i, "Digest", 8],
+    [/animation|cel[- ]?shad|cartoon/i, "Animation", 8],
+    [/urban|street|parking|cityscape/i, "Cityscape", 8],
+    [/quantum|cryptograph/i, "Quantum", 9],
+    [/assess|analy/i, "Assessment", 5],
   ];
   const tasks = [
-    [/adversar|peer review|critique/i, "Critique"],
-    [/fact[- ]?check|vet|valid/i, "Audit"],
-    [/summar|brief|exec/i, "Brief"],
-    [/color|style|ratio|break\s*down/i, "Breakdown"],
-    [/synthes/i, "Synthesis"],
-    [/assess|analy/i, "Review"],
+    [/adversar|peer review|critique/i, "Critique", 10],
+    [/fact[- ]?check|vet|valid/i, "Audit", 9],
+    [/summar|brief|exec/i, "Digest", 8],
+    [/color|style|ratio|break\s*down/i, "Breakdown", 8],
+    [/synthes/i, "Synthesis", 7],
+    [/assess|analy/i, "Scrutiny", 6],
+  ];
+  const friendly = [
+    "Scrutiny", "Digest", "Breakdown", "Synthesis", "Contrast",
+    "Framework", "Signalcraft", "Threadmark", "Spotlight", "Blueprint",
   ];
 
-  const words = [];
-  const push = (w) => {
-    const t = titleCaseWord(String(w || "").replace(/[^A-Za-z0-9-]/g, ""));
-    if (!t || words.some((x) => x.toLowerCase() === t.toLowerCase())) return;
-    words.push(t);
+  const pool = new Map();
+  const add = (word, sem) => {
+    const t = titleCaseWord(String(word || "").replace(/[^A-Za-z0-9-]/g, ""));
+    if (!t || stop.has(t.toLowerCase())) return;
+    if (mumbleClarity(t) < 0.9) return;
+    pool.set(t, Math.max(pool.get(t) || 0, sem));
   };
 
-  for (const [re, label] of rules) {
-    if (re.test(blob)) { push(label); break; }
+  for (const [re, label, sem] of rules) {
+    if (re.test(blob)) add(label, sem + 8);
+  }
+  for (const [re, label, sem] of tasks) {
+    if (re.test(blob)) add(label, sem + 7);
   }
   const counts = {};
   for (const w of blob.toLowerCase().match(/[a-z][a-z0-9'-]{3,}/g) || []) {
     if (stop.has(w)) continue;
     counts[w] = (counts[w] || 0) + 1;
   }
-  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([w]) => w);
-  for (const w of ranked) {
-    if (words.length >= 2) break;
-    push(w);
+  for (const [w, n] of Object.entries(counts)) add(w, n + 2);
+  friendly.forEach((w, i) => add(w, 3.5 - i * 0.15));
+
+  const ranked = [...pool.entries()]
+    .map(([word, sem]) => [word, mumbleClarity(word) * 1.55 + sem * 1.15])
+    .sort((a, b) => b[1] - a[1]);
+
+  const picked = [];
+  const stubs = new Set();
+  for (const [word] of ranked) {
+    const stub = mumblzWord(word).toLowerCase();
+    if (stubs.has(stub)) continue;
+    if (picked.some((p) => p.toLowerCase() === word.toLowerCase())) continue;
+    picked.push(word);
+    stubs.add(stub);
+    if (picked.length >= 3) break;
   }
-  for (const [re, label] of tasks) {
-    if (re.test(blob)) { push(label); break; }
+  while (picked.length < 3) {
+    const fb = friendly.find((w) => !picked.some((p) => p.toLowerCase() === w.toLowerCase()));
+    picked.push(fb || ["Signalcraft", "Blueprint", "Threadmark"][picked.length]);
   }
-  for (const w of [...ranked, "Insight", "Session", "Thread"]) {
-    if (words.length >= 3) break;
-    push(w);
-  }
-  while (words.length < 3) words.push(["Alpha", "Signal", "Thread"][words.length]);
-  return mumblzTitle(words.slice(0, 3).join(" "));
+  return mumblzTitle(picked.slice(0, 3).join(" "));
 }
 
 function looksProvisionalTitle(title) {
