@@ -170,6 +170,7 @@ async def chat_endpoint(
                                     "provider": session.provider,
                                     "model": session.model,
                                     "fallback_used": session.fallback_used,
+                                    "fallback_reason": session.fallback_reason,
                                 }
                             ) + "\n"
                             use_prov = session.provider

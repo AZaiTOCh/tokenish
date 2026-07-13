@@ -246,8 +246,20 @@ async def _refresh_openrouter_roster(routing: dict[str, Any]) -> list[str]:
     return merged
 
 
-async def run_preflight() -> tuple[list[ProviderStatus], dict[str, Any]]:
+_PREFLIGHT_CACHE: dict[str, Any] = {"at": 0.0, "statuses": [], "meta": {}}
+_PREFLIGHT_TTL_SECS = 120.0
+
+
+async def run_preflight(*, force: bool = False) -> tuple[list[ProviderStatus], dict[str, Any]]:
     """Argus preflight: live probes + routing refresh. Returns statuses + routing meta."""
+    now = time.time()
+    if (
+        not force
+        and _PREFLIGHT_CACHE["statuses"]
+        and now - float(_PREFLIGHT_CACHE["at"]) < _PREFLIGHT_TTL_SECS
+    ):
+        return _PREFLIGHT_CACHE["statuses"], _PREFLIGHT_CACHE["meta"]
+
     routing = _load_routing()
     providers_cfg = routing.setdefault("providers", {})
     meta: dict[str, Any] = {"argus": True, "fallback_chain": _fallback_list()}
@@ -259,11 +271,14 @@ async def run_preflight() -> tuple[list[ProviderStatus], dict[str, Any]]:
     openai_err = ""
     if openai_key():
         ok, openai_ms, openai_err = await _test_openai(openai_model)
-        openai_ok = ok or not _should_deactivate(openai_err)
+        openai_ok = ok
+        if not ok and _is_quota_error(openai_err):
+            openai_err = "quota exceeded - add billing or use fallback"
         providers_cfg["openai"] = {
             "is_active": openai_ok,
             "model_name": openai_model,
             "latency_ms": openai_ms,
+            "error": openai_err,
         }
 
     # Gemini 3.5
@@ -274,7 +289,9 @@ async def run_preflight() -> tuple[list[ProviderStatus], dict[str, Any]]:
     if gemini_key():
         if _gemini_ping_due(routing):
             ok, gemini_ms, gemini_err = await _test_gemini(gemini_model)
-            gemini_ok = ok or not _should_deactivate(gemini_err)
+            gemini_ok = ok
+            if not ok and _is_quota_error(gemini_err):
+                gemini_err = "quota exceeded"
             providers_cfg.setdefault("gemini", {})["last_ping"] = _now()
             providers_cfg["gemini"].update(
                 {"is_active": gemini_ok, "model_name": gemini_model, "latency_ms": gemini_ms}
@@ -335,12 +352,24 @@ async def run_preflight() -> tuple[list[ProviderStatus], dict[str, Any]]:
             models=["claude-sonnet-4-20250514", "claude-3-5-haiku-latest"],
         ),
     ]
+    _PREFLIGHT_CACHE.update({"at": time.time(), "statuses": statuses, "meta": meta})
     return statuses, meta
+
+
+def _is_quota_error(err: str) -> bool:
+    e = (err or "").lower()
+    return "429" in e or "quota" in e or "resource_exhausted" in e
 
 
 def _should_deactivate(err: str) -> bool:
     e = (err or "").lower()
-    return "invalid" in e or "401" in e or "403" in e or "api key" in e
+    return (
+        "invalid" in e
+        or "401" in e
+        or "403" in e
+        or "api key" in e
+        or _is_quota_error(err)
+    )
 
 
 def _fallback_list() -> list[str]:

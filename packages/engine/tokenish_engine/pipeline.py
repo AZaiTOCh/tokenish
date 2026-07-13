@@ -92,6 +92,31 @@ def optimize(
             stages.append("pxpipe")
 
     nodes = compress_instructions(prompt)
+
+    # Short prompts with no attachment: skip LCS wrapper (cannot save tokens).
+    if not raw_doc and not image_b64 and count_tokens(prompt) < 32:
+        envelope = prompt.strip()
+        stages.append("passthrough_short")
+        tokex = compute_tokex(
+            baseline_text=baseline_prompt(prompt, ""),
+            optimized_text=envelope,
+            stages=stages,
+            fact_notes=["short prompt — optimizer skipped (nothing to compress)"],
+        )
+        return CompileResult(
+            envelope=envelope,
+            nodes=nodes,
+            meter=tokex,
+            tokex=tokex,
+            data_type=data_type,
+            image_b64=image_b64,
+            image_mime=image_mime,
+            stages=stages,
+            pxpipe_applied=False,
+            its=its_meta,
+            kiosk_blocked=kiosk_blocked,
+        )
+
     if kiosk_blocked:
         envelope = (
             "#C Expert[HonestyGate]\n"

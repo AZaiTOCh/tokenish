@@ -27,6 +27,7 @@ class StreamSession:
     provider: str | None = None
     model: str | None = None
     fallback_used: bool = False
+    fallback_reason: str | None = None
 
 
 def _load_fallbacks() -> list[tuple[str, str]]:
@@ -125,13 +126,23 @@ def _user_content(envelope: str, image_b64: str | None, image_mime: str | None) 
     return envelope
 
 
+def _provider_active(name: str) -> bool:
+    try:
+        data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
+        prov = data.get("providers", {}).get(name, {})
+        if "is_active" in prov:
+            return bool(prov["is_active"])
+    except Exception:
+        pass
+    return _provider_ready(name)
+
+
 def _fallback_chain(provider: str, model: str) -> list[tuple[str, str]]:
     chain: list[tuple[str, str]] = [(provider, model)]
     for prov, mdl in _load_fallbacks():
         if (prov, mdl) not in chain:
             chain.append((prov, mdl))
-    # Only keep providers that have keys configured
-    ready = [(p, m) for p, m in chain if _provider_ready(p)]
+    ready = [(p, m) for p, m in chain if _provider_active(p)]
     return ready or chain
 
 
@@ -162,6 +173,22 @@ async def chat_complete(
     raise RuntimeError("all providers failed — " + " | ".join(errors[:6]))
 
 
+def _provider_skip_reason(name: str) -> str:
+    try:
+        data = json.loads(_ROUTING_PATH.read_text(encoding="utf-8"))
+        prov = data.get("providers", {}).get(name, {})
+        err = prov.get("error") or ""
+        if err:
+            return f"{name}: {err}"
+        if prov.get("is_active") is False:
+            return f"{name}: unavailable"
+    except Exception:
+        pass
+    if not _provider_ready(name):
+        return f"{name}: API key missing"
+    return f"{name}: unavailable"
+
+
 async def chat_stream(
     *,
     provider: str,
@@ -174,7 +201,11 @@ async def chat_stream(
 ) -> AsyncIterator[str]:
     history = history or []
     requested = (provider, model)
-    for prov, mdl in _fallback_chain(provider, model):
+    chain = _fallback_chain(provider, model)
+    last_err = ""
+    if chain and chain[0] != requested:
+        last_err = _provider_skip_reason(requested[0])
+    for prov, mdl in chain:
         try:
             if prov in {"openai", "groq", "openrouter", "perplexity"}:
                 async for delta in _openai_compatible_stream(
@@ -191,11 +222,15 @@ async def chat_stream(
                         session.provider = prov
                         session.model = mdl
                         session.fallback_used = (prov, mdl) != requested
+                        if session.fallback_used and last_err:
+                            session.fallback_reason = last_err
                     yield delta
                 if session and session.provider is None:
                     session.provider = prov
                     session.model = mdl
                     session.fallback_used = (prov, mdl) != requested
+                    if session.fallback_used and last_err:
+                        session.fallback_reason = last_err
                 return
             text = await _dispatch_once(
                 provider=prov,
@@ -209,11 +244,16 @@ async def chat_stream(
                 session.provider = prov
                 session.model = mdl
                 session.fallback_used = (prov, mdl) != requested
+                if session.fallback_used and last_err:
+                    session.fallback_reason = last_err
             yield text
             return
-        except Exception:
+        except Exception as exc:
+            last_err = f"{prov}: {str(exc)[:120]}"
+            if session:
+                session.fallback_reason = last_err
             continue
-    raise RuntimeError("all providers failed during stream")
+    raise RuntimeError("all providers failed during stream" + (f" — {last_err}" if last_err else ""))
 
 
 def _base_url(provider: str) -> str:
@@ -263,7 +303,7 @@ async def _dispatch_once(
     if provider == "anthropic":
         return await _anthropic_chat(model, envelope, history, image_b64, image_mime)
     if provider == "gemini":
-        return await _gemini_chat(model, envelope, history)
+        return await _gemini_chat(model, envelope, history, image_b64, image_mime)
     if provider in {"groq", "openai", "openrouter", "perplexity"}:
         return await _openai_compatible(
             base_url=_base_url(provider),
@@ -354,7 +394,13 @@ async def _openai_compatible_stream(
                     continue
 
 
-async def _gemini_chat(model: str, envelope: str, history: list[dict[str, str]]) -> str:
+async def _gemini_chat(
+    model: str,
+    envelope: str,
+    history: list[dict[str, str]],
+    image_b64: str | None = None,
+    image_mime: str | None = None,
+) -> str:
     key = gemini_key()
     if not key:
         raise RuntimeError("GEMINI_API_KEY / GOOGLE_API_KEY missing")
@@ -362,7 +408,18 @@ async def _gemini_chat(model: str, envelope: str, history: list[dict[str, str]])
     for h in history:
         role = "user" if h["role"] == "user" else "model"
         contents.append({"role": role, "parts": [{"text": h["content"]}]})
-    contents.append({"role": "user", "parts": [{"text": envelope}]})
+    user_parts: list[dict[str, Any]] = []
+    if image_b64:
+        user_parts.append(
+            {
+                "inline_data": {
+                    "mime_type": image_mime or "image/jpeg",
+                    "data": image_b64,
+                }
+            }
+        )
+    user_parts.append({"text": envelope})
+    contents.append({"role": "user", "parts": user_parts})
 
     async def _call(mdl: str) -> httpx.Response:
         url = (

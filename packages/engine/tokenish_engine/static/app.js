@@ -31,10 +31,15 @@ function renderTokex(t) {
   const total = t ? (t.total_tokex ?? t.original_tokens ?? 0) : 0;
   const run = t ? (t.tokex_this_run ?? t.optimized_tokens ?? 0) : 0;
   const pct = t ? (t.saved_pct ?? 0) : 0;
-  document.getElementById("tokexSaved").textContent = `Saved Tokens ${pct}%`;
+  const minimal = total > 0 && total < 32 && saved === 0;
+  document.getElementById("tokexSaved").textContent = minimal
+    ? "Saved Tokens —"
+    : `Saved Tokens ${pct}%`;
   document.getElementById("tokexTotal").textContent = Number(total).toLocaleString();
   document.getElementById("tokexRun").textContent = Number(run).toLocaleString();
-  document.getElementById("tokexPct").textContent = `${Number(saved).toLocaleString()} (${pct}%)`;
+  document.getElementById("tokexPct").textContent = minimal
+    ? "short prompt"
+    : `${Number(saved).toLocaleString()} (${pct}%)`;
 }
 
 function addBubble(role, content, meta = {}) {
@@ -69,6 +74,10 @@ async function loadProviders() {
       document.getElementById("provider").value =
         pref.provider === "openai" || pref.provider === "groq" ? "auto" : pref.provider;
       document.getElementById("model").value = pref.model;
+    }
+    const oai = (data.providers || []).find((p) => p.name === "openai");
+    if (oai && !oai.available && /quota|429/i.test(oai.detail || "")) {
+      showError("ChatGPT quota exceeded — replies use Gemini/OpenRouter fallback");
     }
   } catch {
     showError("engine offline");
@@ -124,12 +133,16 @@ async function send() {
           meta.provider = evt.provider;
           meta.model = evt.model;
           meta.fallback_used = evt.fallback_used;
+          meta.fallback_reason = evt.fallback_reason;
         } else if (evt.type === "delta") {
           assistant += evt.text || "";
           const t = meta.tokex || meta.meter;
-          const route = meta.provider
-            ? `${meta.provider}/${meta.model}${meta.fallback_used ? " (fallback)" : ""}`
-            : "";
+          let route = meta.provider ? `${meta.provider}/${meta.model}` : "";
+          if (meta.fallback_used) {
+            route += meta.fallback_reason
+              ? ` (fallback: ${meta.fallback_reason.replace(/^openai:\s*/i, "ChatGPT ")})`
+              : " (fallback)";
+          }
           bubble.innerHTML = `<div class="meta">assistant${route ? ` · ${route}` : ""}${
             t ? ` · saved ${t.saved_tokex ?? t.saved_tokens} (${t.saved_pct}%)` : ""
           }</div>${escapeHtml(assistant)}`;
