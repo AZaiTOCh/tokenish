@@ -36,7 +36,7 @@
       "meta-llama/llama-3.2-3b-instruct:free",
       "nousresearch/hermes-3-llama-3.1-405b:free"
     ],
-    "last_verified": "2026-07-13T15:41:13Z",
+    "last_verified": "2026-07-13T15:44:59Z",
     "last_test_called": "2026-07-13T15:35:40Z"
   },
   "providers": {
@@ -51,15 +51,16 @@
       "error": "gemini HTTP 429: {\n  \"error\": {\n    \"code\": 429,\n    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more informati"
     },
     "openrouter": {
-      "is_active": true,
+      "is_active": false,
       "models": [
         "openrouter/free"
-      ]
+      ],
+      "error": "HTTP 429: b'{\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"openai/gpt-oss-120b:free is temporarily rate-limited upstream. Please re"
     },
     "groq": {
       "is_active": false,
       "models": []
     }
   },
-  "last_updated": "2026-07-13T15:41:13Z"
+  "last_updated": "2026-07-13T15:44:59Z"
 }
