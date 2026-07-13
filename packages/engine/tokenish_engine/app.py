@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -8,12 +9,22 @@ from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from tokenish_engine import __version__
-from tokenish_engine.dispatch import chat_complete, chat_stream, preflight, preflight_full, resolve_provider, resolve_model
+from tokenish_engine.dispatch import chat_complete, chat_stream, preflight_full, resolve_model, resolve_provider
 from tokenish_engine.dispatch.providers import StreamSession
+from tokenish_engine.history import compress_history
 from tokenish_engine.pipeline import optimize
 from tokenish_engine.retrieve import moorcheh_available
+from tokenish_engine.settings_store import (
+    apply_saved_keys_to_environ,
+    load_keys,
+    save_keys,
+    tokenish_home,
+)
+
+apply_saved_keys_to_environ()
 
 app = FastAPI(title="tokenish", version=__version__)
 app.add_middleware(
@@ -29,6 +40,15 @@ if _STATIC.is_dir():
     app.mount("/ui", StaticFiles(directory=str(_STATIC)), name="ui")
 
 
+class KeysPayload(BaseModel):
+    GPT_TOKENISH: str | None = None
+    OPENAI_API_KEY: str | None = None
+    GEMINI_API_KEY: str | None = None
+    GOOGLE_API_KEY: str | None = None
+    OPENROUTER_API_KEY: str | None = None
+    ANTHROPIC_API_KEY: str | None = None
+
+
 @app.get("/")
 async def root_ui():
     index = _STATIC / "index.html"
@@ -42,8 +62,42 @@ async def health() -> dict[str, Any]:
     return {"status": "ok", "version": __version__, "moorcheh_sdk": moorcheh_available()}
 
 
+@app.get("/settings/keys")
+async def get_key_status() -> dict[str, Any]:
+    keys = load_keys()
+    apply_saved_keys_to_environ()
+    return {
+        "openai": bool(
+            keys.get("GPT_TOKENISH")
+            or keys.get("OPENAI_API_KEY")
+            or os.getenv("GPT_TOKENISH")
+            or os.getenv("OPENAI_API_KEY")
+        ),
+        "gemini": bool(
+            keys.get("GEMINI_API_KEY")
+            or keys.get("GOOGLE_API_KEY")
+            or os.getenv("GEMINI_API_KEY")
+            or os.getenv("GOOGLE_API_KEY")
+        ),
+        "openrouter": bool(keys.get("OPENROUTER_API_KEY") or os.getenv("OPENROUTER_API_KEY")),
+        "anthropic": bool(keys.get("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_API_KEY")),
+        "home": str(tokenish_home()),
+        "version": __version__,
+    }
+
+
+@app.post("/settings/keys")
+async def set_keys(payload: KeysPayload) -> dict[str, Any]:
+    data = {k: v for k, v in payload.model_dump().items() if v}
+    save_keys(data)
+    for key, value in data.items():
+        os.environ[key] = value
+    return {"ok": True, "home": str(tokenish_home())}
+
+
 @app.get("/providers")
 async def providers() -> dict[str, Any]:
+    apply_saved_keys_to_environ()
     statuses, meta = await preflight_full()
     return {
         "providers": [s.model_dump() for s in statuses],
@@ -110,6 +164,7 @@ async def chat_endpoint(
     stream: bool = Form(False),
     files: list[UploadFile] | None = File(None),
 ):
+    apply_saved_keys_to_environ()
     uploads = await _read_uploads(files)
     compiled = optimize(
         prompt=prompt,
@@ -118,7 +173,7 @@ async def chat_endpoint(
         files=uploads,
         page_range=page_range,
     )
-    hist = _parse_history(history)
+    hist = compress_history(_parse_history(history))
     prov = resolve_provider(provider, model, target_engine)
     mdl = resolve_model(prov, model, target_engine)
     tokex = _tokex_payload(compiled)

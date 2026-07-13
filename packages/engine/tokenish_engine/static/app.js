@@ -32,14 +32,19 @@ function renderTokex(t) {
   const run = t ? (t.tokex_this_run ?? t.optimized_tokens ?? 0) : 0;
   const pct = t ? (t.saved_pct ?? 0) : 0;
   const minimal = total > 0 && total < 32 && saved === 0;
+  const overhead = total > 0 && run > total;
   document.getElementById("tokexSaved").textContent = minimal
     ? "Saved Tokens —"
-    : `Saved Tokens ${pct}%`;
+    : overhead
+      ? "Saved Tokens 0%"
+      : `Saved Tokens ${pct}%`;
   document.getElementById("tokexTotal").textContent = Number(total).toLocaleString();
   document.getElementById("tokexRun").textContent = Number(run).toLocaleString();
   document.getElementById("tokexPct").textContent = minimal
     ? "short prompt"
-    : `${Number(saved).toLocaleString()} (${pct}%)`;
+    : overhead
+      ? `+${Number(run - total).toLocaleString()} overhead`
+      : `${Number(saved).toLocaleString()} (${pct}%)`;
 }
 
 function addBubble(role, content, meta = {}) {
@@ -184,4 +189,48 @@ promptEl.addEventListener("keydown", (e) => {
 });
 
 addBubble("assistant", "attach a pdf, docx, xlsx, csv, or image. tokenish optimizes every send automatically.");
+
+async function maybeShowKeyWizard() {
+  const modal = document.getElementById("keyModal");
+  if (!modal) return;
+  try {
+    const res = await fetch("/settings/keys");
+    const data = await res.json();
+    if (data.openai || data.gemini) return;
+    modal.hidden = false;
+  } catch {
+    /* ignore */
+  }
+}
+
+document.getElementById("keySkip")?.addEventListener("click", () => {
+  document.getElementById("keyModal").hidden = true;
+});
+
+document.getElementById("keySave")?.addEventListener("click", async () => {
+  const payload = {
+    GEMINI_API_KEY: document.getElementById("keyGemini").value.trim(),
+    GPT_TOKENISH: document.getElementById("keyOpenAI").value.trim(),
+    OPENROUTER_API_KEY: document.getElementById("keyOpenRouter").value.trim(),
+  };
+  if (!payload.GEMINI_API_KEY && !payload.GPT_TOKENISH && !payload.OPENROUTER_API_KEY) {
+    showError("paste at least one API key");
+    return;
+  }
+  try {
+    const res = await fetch("/settings/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    document.getElementById("keyModal").hidden = true;
+    showError("");
+    loadProviders();
+  } catch (e) {
+    showError(e.message || String(e));
+  }
+});
+
 loadProviders();
+maybeShowKeyWizard();
