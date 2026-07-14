@@ -42,6 +42,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .history-sidebar { border-right: 1px solid var(--border); }
 .settings-sidebar { border-left: 1px solid var(--border); }
+.brand-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #000;
+  display: block;
+}
 .brand h1 {
   margin: 0;
   font-size: 1.25rem;
@@ -49,6 +63,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
   text-transform: lowercase;
   color: #18181b;
   font-weight: 600;
+}
+.brand-tagline {
+  margin: 2px 0 0;
+  font-family: "Arimo", system-ui, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: #3f3f46;
 }
 .brand span { color: var(--muted); font-size: 0.78rem; }
 .section-label {
@@ -180,7 +203,7 @@ select, input[type="text"], input[type="password"] {
 .tokex-row {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
   min-width: 0;
 }
@@ -192,12 +215,18 @@ select, input[type="text"], input[type="password"] {
   overflow: visible;
 }
 .tokex-panel.lifetime {
-  border: 1.5px solid #16a34a;
+  border: none;
   background: #dcfce7;
 }
 .tokex-panel.chat {
-  border: 1.5px solid #dc2626;
-  background: #fee2e2;
+  border: none;
+  background: #e0f2fe;
+}
+.tokex-panel.global {
+  border: 1.5px solid #27272a;
+  background: #0a0a0a;
+  color: #fafafa;
+  padding-bottom: 12px;
 }
 .tokex-head {
   display: flex;
@@ -210,11 +239,16 @@ select, input[type="text"], input[type="password"] {
 }
 .tokex-panel.lifetime .tokex-head {
   background: #bbf7d0;
-  border-bottom: 1.5px solid #16a34a;
+  border-bottom: none;
 }
 .tokex-panel.chat .tokex-head {
-  background: #fecaca;
-  border-bottom: 1.5px solid #dc2626;
+  background: #bae6fd;
+  border-bottom: none;
+}
+.tokex-panel.global .tokex-head,
+.tokex-panel.global .global-head {
+  background: #18181b;
+  border-bottom: 1.5px solid #3f3f46;
 }
 .tokex-label {
   font-family: "Arimo", system-ui, sans-serif;
@@ -226,7 +260,9 @@ select, input[type="text"], input[type="password"] {
   line-height: 1.2;
 }
 .tokex-panel.lifetime .tokex-label { color: #14532d; }
-.tokex-panel.chat .tokex-label { color: #7f1d1d; }
+.tokex-panel.chat .tokex-label { color: #0c4a6e; }
+.tokex-panel.global .tokex-label { color: #fafafa; }
+.tokex-panel.global .menu-btn { color: #e4e4e7; border-color: #3f3f46; background: #27272a; }
 .tokex-details-wrap { position: relative; flex-shrink: 0; }
 .tokex-details-menu {
   display: none;
@@ -254,13 +290,73 @@ select, input[type="text"], input[type="password"] {
   text-transform: lowercase;
 }
 .tokex-panel.lifetime .tokex-big { color: #14532d; }
-.tokex-panel.chat .tokex-big { color: #7f1d1d; }
+.tokex-panel.chat .tokex-big { color: #0c4a6e; }
+.tokex-panel.global .tokex-big { color: #fafafa; }
 .tokex-sub {
   font-family: "Arimo", system-ui, sans-serif;
   color: #3f3f46;
   font-size: 0.82rem;
   letter-spacing: 0.02em;
   margin-bottom: 8px;
+}
+.tokex-panel.global .tokex-sub,
+.tokex-panel.global .global-note {
+  color: #a1a1aa;
+  margin-bottom: 0;
+  font-size: 0.72rem;
+}
+.global-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 96px;
+}
+.global-butterfly {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  flex-shrink: 0;
+  image-rendering: auto;
+  background: #050505;
+  border-radius: 8px;
+}
+.global-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.global-pct {
+  font-family: "Arimo", system-ui, sans-serif;
+  font-weight: 700;
+  color: #fafafa;
+  line-height: 1;
+  font-size: clamp(1.55rem, 2.4vw, 2.05rem);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  margin: 2px 0 4px;
+}
+.live-world-clock {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #e4e4e7;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.tokex-panel.global .tokex-sub,
+.tokex-panel.global .global-note,
+.tokex-panel.global .global-users {
+  color: #a1a1aa;
+  margin-bottom: 0;
+  margin-top: 2px;
+  font-size: 0.72rem;
+}
+.tokex-panel.global .global-users {
+  color: #d4d4d8;
+  font-weight: 500;
 }
 .tokex-grid {
   display: grid;
@@ -489,6 +585,12 @@ textarea {
   overflow: auto;
 }
 .modal-lead { color: var(--muted); font-size: 0.92rem; margin: 0 0 10px; }
+.modal-lead .api-explain-link {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.modal-lead .api-explain-link:hover { color: #1e40af; }
 .key-slot {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -517,7 +619,47 @@ textarea {
 }
 .key-badge.free { background: #dcfce7; border-color: #86efac; color: #14532d; }
 .key-badge.paid { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+.key-badge.linked {
+  background: #6b7280;
+  border-color: #4b5563;
+  color: #fff;
+  font-weight: 700;
+}
 .key-badge.soon { background: #f4f4f5; }
+.key-slot.linked-slot,
+.key-slot[data-linked="true"] {
+  background: #d1d5db !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  opacity: 0.85;
+  filter: grayscale(0.7);
+}
+.key-slot.linked-slot strong { color: #4b5563; }
+.key-slot.linked-slot .key-hint { color: #6b7280; }
+.key-slot.linked-slot .key-linked-input,
+.key-slot[data-linked="true"] input[type="password"] {
+  background: #9ca3af !important;
+  color: #111827 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: pointer;
+}
+.key-slot.linked-slot:focus-within,
+.key-slot[data-linked="true"]:focus-within {
+  opacity: 1;
+  filter: none;
+  background: #f3f4f6 !important;
+  border-color: transparent !important;
+}
+.key-slot.linked-slot:focus-within .key-linked-input,
+.key-slot[data-linked="true"]:focus-within input[type="password"] {
+  background: #fff !important;
+  color: inherit !important;
+  border-color: var(--border) !important;
+  cursor: text;
+}
 .stack-box { margin: 12px 0; }
 .stack-box label { display: block; font-size: 0.85rem; margin-bottom: 4px; }
 .dont-show {

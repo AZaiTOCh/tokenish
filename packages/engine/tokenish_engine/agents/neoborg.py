@@ -1,12 +1,8 @@
 """
 NeoBorg — benevolent hive TOKEX clock agent.
 
-Receives Mrs. Brown handoffs, fact-checks them again, and keeps a local
-running tally that will later power the live global TOKEX CLOCK
-(GitHub / website aggregate — network broadcast deliberately parked).
-
-Star Trek Borg as metaphor only: cooperative shared savings, not extraction.
-No LLM. No invented global figures beyond what has been handed in.
+Receives Mrs. Brown handoffs, fact-checks them again, keeps a local ledger,
+and (when opted in) broadcasts vetted deltas to the Live World Counter Clock hive.
 """
 
 from __future__ import annotations
@@ -54,11 +50,14 @@ def _save_ledger(data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
+def _broadcast_sync(saved: int, total: int) -> dict[str, Any]:
+    """Sync hive contribute (pipeline is sync)."""
+    from tokenish_engine.agents.tokex_clock import broadcast_contribution_sync
+
+    return broadcast_contribution_sync(saved, total)
+
+
 def cross_vet_and_record(handoff: dict[str, Any] | None) -> dict[str, Any]:
-    """
-    Second-pass factual check, then add to local NeoBorg ledger.
-    Network broadcast of the live clock is not enabled yet.
-    """
     if not handoff:
         return {
             "agent": "NeoBorg",
@@ -101,7 +100,7 @@ def cross_vet_and_record(handoff: dict[str, Any] | None) -> dict[str, Any]:
             "cylinders_fired": handoff.get("cylinders_fired") or [],
         }
     )
-    ledger["entries"] = entries[-200:]  # keep last 200 local contributions
+    ledger["entries"] = entries[-200:]
     ledger["agent"] = "NeoBorg"
     _save_ledger(ledger)
 
@@ -109,15 +108,15 @@ def cross_vet_and_record(handoff: dict[str, Any] | None) -> dict[str, Any]:
     total_sum = int(ledger["global_total_tokex"])
     pct = round((saved_sum / total_sum) * 100.0, 2) if total_sum else 0.0
 
+    hive = _broadcast_sync(saved, total)
+
     return {
         "agent": "NeoBorg",
         "accepted": True,
         "reason": "ok",
-        "broadcast": False,  # live multi-user clock parked by product decision
-        "broadcast_note": (
-            "global live TOKEX CLOCK broadcast is parked; "
-            "this ledger is local-factual only until network hive is enabled"
-        ),
+        "broadcast": bool(hive.get("broadcast")),
+        "broadcast_note": hive.get("reason") or "",
+        "hive": hive,
         "clock_preview": {
             "saved_tokex": saved_sum,
             "total_tokex": total_sum,

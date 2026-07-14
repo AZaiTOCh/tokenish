@@ -20,7 +20,8 @@ Add every new tokenish coinage here when it is incepted. Keep definitions plain.
 | **Split-Execution** | Package the *job* and the *document/payload* so the model gets a cheaper, still-loyal send | v0.0 | v0.1+ LCS / envelopes |
 | **tknsh** | The little pulsing “t-k-n-s-h” wait animation in chat / attach staging | v0.2 | v0.2 UI |
 | **DoP** | Duration of Process — wall-clock window for a version’s work | v0.3 | v0.3 VERSION_LOG |
-| **TOKEX CLOCK** | Future live global tally of tokens saved by all tokenish users (NeoBorg broadcast) | v0.3 (named) | local NeoBorg ledger only; **network broadcast parked** |
+| **TOKEX CLOCK** | Live global tally of tokens saved by tokenish users (NeoBorg broadcast) | v0.3 (named) | **v0.3.1 Live World Counter Clock** — engine hive + Cloudflare Worker scaffold |
+| **Live World Counter** | NeoBorg hive surface: collective TOKEX % + local H:M:S/zone + users online | v0.3.1 (as Clock) | **v0.4** renamed; engine hive + CF Worker scaffold |
 
 ### Agents (agentics)
 
@@ -31,7 +32,7 @@ Add every new tokenish coinage here when it is incepted. Keep definitions plain.
 | **Rainman** | After each run, fact-checks which tokopt cylinders fired and what TOKEX measured — **no guessing, no LLM** | v0.3 | v0.3 (wired into every optimize seal) |
 | **Agatha** | Files Rainman’s briefs in a local SQLite archive (`~/.tokenish/agatha.db`) | v0.3 | v0.3 |
 | **Mrs. Brown** | Matriarch hive agent — accepts only valid numeric TOKEX records, then hands off to NeoBorg | v0.3 | v0.3 |
-| **NeoBorg** | Benevolent hive agent — second-checks Mrs. Brown’s handoff and keeps the local global-style savings ledger (Star Trek Borg as *cooperative* metaphor, not parasitic) | v0.3 | v0.3 (local ledger; live multi-user clock parked) |
+| **NeoBorg** | Benevolent hive agent — cross-vet + ledger + Live World Counter broadcast | v0.3 | v0.3 ledger; **v0.4** live counter / sync |
 
 ### Tokopt cylinders (current register)
 
@@ -120,6 +121,25 @@ Paid you added (Claude → ChatGPT) first → **Gemini free first** among unpaid
 
 ### Not in this commit (parked)
 - Live multi-user NeoBorg **TOKEX CLOCK** network broadcast (local ledger ready).
+
+---
+
+## v0.3.1 — Live World Counter Clock (NeoBorg hive)
+- **DoP:** Jul 14, 2026 · ~8:03 AM EST onward (global panel + hive resume)
+- **Tokopt / hive:** NeoBorg unparks network path
+  - Discrete module: **Live World Counter Clock** (`tokex_clock.py` + `hive_store.py`)
+  - Option **B**: tiny always-on hive API (Cloudflare Worker scaffold in `packages/tokex-clock`); engine-local `/hive` until Worker URL is set
+  - Opt-in popup + global panel with local H:M:S clock + upright butterfly + hive saved-%
+- **UI:** three TOKEX panels — lifetime / this chat / global
+
+---
+
+## v0.4.0 — Live World Counter + brand polish
+- **DoP:** Jul 14, 2026 · ~8:03 AM – ~8:46 AM EST (NeoBorg hive resume through v0.4 UI/README)
+- Package version **0.4.0**.
+- **Live World Counter** (was “TOKEX CLOCK” / Live World Counter Clock): global panel, absolute per-node hive sync, users-online presence, Cloudflare Worker scaffold (`packages/tokex-clock`).
+- Brand: logo + tagline **evry drp cnts**; Grok (xAI) slot; API-link greying inventory; lifetime/this-chat borderless color panels.
+- Agents unchanged in set from v0.3; NeoBorg broadcast + `tokex_clock` / `hive_store` are the net-new hive surface.
 
 ---
 

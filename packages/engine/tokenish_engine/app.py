@@ -18,6 +18,7 @@ from tokenish_engine.dispatch.providers import StreamSession
 from tokenish_engine.history import compress_history
 from tokenish_engine.pipeline import optimize
 from tokenish_engine.retrieve import memtrove_available
+from tokenish_engine.key_inventory import linked_inventory, linked_provider_status
 from tokenish_engine.settings_store import (
     apply_saved_keys_to_environ,
     load_keys,
@@ -50,6 +51,8 @@ class KeysPayload(BaseModel):
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
     GROQ_API_KEY: str | None = None
+    XAI_API_KEY: str | None = None
+    GROK_API_KEY: str | None = None
     PERPLEXITY_API_KEY: str | None = None
     fallback_preference: str | None = None
     hide_key_wizard: bool | None = None
@@ -89,22 +92,108 @@ async def health() -> dict[str, Any]:
     return {"status": "ok", "version": __version__, "memtrove_sdk": memtrove_available()}
 
 
+class HiveOptInPayload(BaseModel):
+    hive_opt_in: bool = True
+    hive_url: str | None = None
+
+
+class HiveContributePayload(BaseModel):
+    node_id: str
+    saved_tokex: int
+    total_tokex: int
+    ts: float | None = None
+    agent: str | None = None
+
+
+class HiveSyncPayload(BaseModel):
+    saved_tokex: int
+    total_tokex: int
+
+
+@app.get("/tokex-clock")
+@app.get("/hive/clock")
+async def tokex_clock_get() -> dict[str, Any]:
+    """Live World Counter Clock — always read collective tally (engine or remote hive)."""
+    from tokenish_engine.agents.tokex_clock import fetch_live_clock
+
+    return await fetch_live_clock()
+
+
+@app.post("/hive/contribute")
+async def hive_contribute(payload: HiveContributePayload) -> dict[str, Any]:
+    """Accept a vetted NeoBorg contribution into the engine-local hive store."""
+    from tokenish_engine import hive_store
+
+    try:
+        return {
+            "ok": True,
+            **hive_store.contribute(payload.node_id, payload.saved_tokex, payload.total_tokex),
+        }
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/hive/sync")
+@app.post("/tokex-clock/sync")
+async def hive_sync_lifetime(payload: HiveSyncPayload) -> dict[str, Any]:
+    """Push absolute lifetime TOKEX for this node (keeps sole-user global % on par)."""
+    from tokenish_engine.agents.tokex_clock import sync_lifetime_sync
+
+    result = sync_lifetime_sync(payload.saved_tokex, payload.total_tokex)
+    if not result.get("ok"):
+        return JSONResponse({"ok": False, "error": result.get("reason") or "sync failed"}, status_code=400)
+    return result
+
+
+@app.post("/hive/heartbeat")
+async def hive_heartbeat(payload: HiveContributePayload) -> dict[str, Any]:
+    from tokenish_engine import hive_store
+
+    try:
+        return {
+            "ok": True,
+            **hive_store.heartbeat(payload.node_id, payload.saved_tokex, payload.total_tokex),
+        }
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/tokex-clock/opt-in")
+async def tokex_clock_opt_in(payload: HiveOptInPayload) -> dict[str, Any]:
+    from tokenish_engine.agents.tokex_clock import set_hive_opt_in
+
+    return {"ok": True, **set_hive_opt_in(payload.hive_opt_in, url=payload.hive_url)}
+
+
+@app.get("/tokex-clock/status")
+async def tokex_clock_status() -> dict[str, Any]:
+    from tokenish_engine.agents.tokex_clock import fetch_live_clock, hive_opt_in, hive_url, node_id
+
+    clock = await fetch_live_clock()
+    return {
+        "ok": True,
+        "hive_opt_in": hive_opt_in(),
+        "hive_url": hive_url(),
+        "node_id": node_id(),
+        "clock": clock,
+    }
+
+def _provider_key_status() -> dict[str, bool]:
+    """Which providers already have a key (config + env + Settings/.env helpers)."""
+    return linked_provider_status()
+
+
 @app.get("/settings/keys")
 async def get_key_status() -> dict[str, Any]:
-    apply_saved_keys_to_environ(overwrite=True)
-    keys = load_keys()
+    has = _provider_key_status()
     prefs = load_prefs()
-    has = {
-        "gemini": bool(keys.get("GEMINI_API_KEY") or keys.get("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")),
-        "openrouter": bool(keys.get("OPENROUTER_API_KEY") or os.getenv("OPENROUTER_API_KEY")),
-        "openai": bool(keys.get("OPENAI_API_KEY") or keys.get("GPT_TOKENISH") or os.getenv("OPENAI_API_KEY")),
-        "anthropic": bool(keys.get("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_API_KEY")),
-        "groq": bool(keys.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")),
-        "perplexity": bool(keys.get("PERPLEXITY_API_KEY") or os.getenv("PERPLEXITY_API_KEY")),
-    }
+    inv = linked_inventory()
     return {
         **has,
         "has": has,
+        "linked": inv["linked"],
+        "linked_count": inv["linked_count"],
+        "any_linked": inv["any_linked"],
         "prefs": prefs,
         "home": str(tokenish_home()),
         "version": __version__,
@@ -121,8 +210,11 @@ async def set_keys(payload: KeysPayload):
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "GROQ_API_KEY",
+        "XAI_API_KEY",
+        "GROK_API_KEY",
         "PERPLEXITY_API_KEY",
     }
+    # Only persist non-empty values — blank fields never wipe existing keys.
     data = {k: str(v).strip() for k, v in raw.items() if k in allowed and v and str(v).strip()}
     prefs_in = {}
     if payload.fallback_preference is not None:
@@ -137,13 +229,20 @@ async def set_keys(payload: KeysPayload):
                 object.__setattr__(_settings, "fallback_preference", prefs_in["fallback_preference"])
             except Exception:
                 pass
-    existing = load_keys()
-    if not data and not existing and not prefs_in:
-        return JSONResponse({"ok": False, "error": "paste at least one AI key"}, status_code=400)
-    if not data and not existing:
-        # prefs-only when no keys yet — still require a key for first-time use
-        if not prefs_in.get("hide_key_wizard"):
-            return JSONResponse({"ok": False, "error": "paste at least one AI key"}, status_code=400)
+
+    already = _provider_key_status()
+    any_already = any(already.values())
+    # Gemini / OpenRouter are optional. Any single linked provider (or new paste) is enough.
+    if not data and not any_already and not prefs_in:
+        return JSONResponse(
+            {"ok": False, "error": "paste at least one AI key (any provider — Gemini and OpenRouter are optional)"},
+            status_code=400,
+        )
+    if not data and not any_already:
+        return JSONResponse(
+            {"ok": False, "error": "paste at least one AI key (any provider — Gemini and OpenRouter are optional)"},
+            status_code=400,
+        )
     if data:
         save_keys(data)
         for key, value in data.items():
@@ -158,6 +257,7 @@ async def set_keys(payload: KeysPayload):
                 "openai": ("OPENAI_API_KEY",),
                 "anthropic": ("ANTHROPIC_API_KEY",),
                 "groq": ("GROQ_API_KEY",),
+                "grok": ("XAI_API_KEY", "GROK_API_KEY"),
                 "perplexity": ("PERPLEXITY_API_KEY",),
             }
             for pname, key_names in mapping.items():
@@ -167,18 +267,31 @@ async def set_keys(payload: KeysPayload):
             routing_path.write_text(json.dumps(routing, indent=2) + "\n", encoding="utf-8")
         except Exception:
             pass
-    return {"ok": True, "home": str(tokenish_home()), "saved": list(data.keys()), "prefs": load_prefs()}
+    linked_after = _provider_key_status()
+    inv = linked_inventory()
+    return {
+        "ok": True,
+        "home": str(tokenish_home()),
+        "saved": list(data.keys()),
+        "has": linked_after,
+        "linked": inv["linked"],
+        "linked_count": inv["linked_count"],
+        "any_linked": inv["any_linked"],
+        "prefs": load_prefs(),
+    }
 
 
 @app.get("/providers")
 async def providers() -> dict[str, Any]:
     apply_saved_keys_to_environ()
     statuses, meta = await preflight_full()
+    inv = linked_inventory()
     return {
         "providers": [s.model_dump() for s in statuses],
         "preferred": meta.get("preferred"),
         "fallback_chain": meta.get("fallback_chain"),
         "openrouter_free_roster": meta.get("openrouter_free_roster"),
+        "linked_keys": inv,
     }
 
 

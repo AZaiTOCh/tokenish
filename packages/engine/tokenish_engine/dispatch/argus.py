@@ -15,13 +15,9 @@ from typing import Any
 
 import httpx
 
-from tokenish_engine.config import gemini_key, openrouter_key, settings
-# openai kept only for optional offline tests; not used in product surface
-try:
-    from tokenish_engine.config import openai_key  # noqa: F401
-except Exception:  # pragma: no cover
-    def openai_key():  # type: ignore
-        return None
+from tokenish_engine.config import gemini_key, grok_key, groq_key, openrouter_key, settings
+from tokenish_engine.config import anthropic_key, openai_key, perplexity_key
+from tokenish_engine.key_inventory import PROVIDER_ORDER, linked_inventory, linked_provider_status
 from tokenish_engine.models import ProviderStatus
 
 _ROUTING_PATH = Path(__file__).resolve().parent.parent / "routing.json"
@@ -257,18 +253,26 @@ _PREFLIGHT_TTL_SECS = 120.0
 
 
 async def run_preflight(*, force: bool = False) -> tuple[list[ProviderStatus], dict[str, Any]]:
-    """Argus preflight: live probes + routing refresh. Returns statuses + routing meta."""
+    """Argus preflight: live probes + linked-API inventory + routing refresh."""
     now = time.time()
     if (
         not force
         and _PREFLIGHT_CACHE["statuses"]
         and now - float(_PREFLIGHT_CACHE["at"]) < _PREFLIGHT_TTL_SECS
     ):
-        return _PREFLIGHT_CACHE["statuses"], _PREFLIGHT_CACHE["meta"]
+        # Always refresh linked-key inventory (cheap, must match launch greying).
+        meta = dict(_PREFLIGHT_CACHE["meta"] or {})
+        meta["linked_keys"] = linked_inventory()
+        return _PREFLIGHT_CACHE["statuses"], meta
 
     routing = _load_routing()
     providers_cfg = routing.setdefault("providers", {})
-    meta: dict[str, Any] = {"argus": True, "fallback_chain": _fallback_list()}
+    linked = linked_provider_status()
+    meta: dict[str, Any] = {
+        "argus": True,
+        "fallback_chain": _fallback_list(),
+        "linked_keys": linked_inventory(),
+    }
 
     # Gemini
     gemini_model = settings.gemini_model
@@ -303,32 +307,62 @@ async def run_preflight(*, force: bool = False) -> tuple[list[ProviderStatus], d
     or_ok = bool(openrouter_key()) and bool(or_models)
     providers_cfg.setdefault("openrouter", {})["is_active"] = or_ok
 
+    # Sync key_linked / is_active from factual inventory (UI greying source of truth).
+    for pname, has_key in linked.items():
+        slot = providers_cfg.setdefault(pname, {})
+        slot["key_linked"] = bool(has_key)
+        if pname in {"gemini", "openrouter"}:
+            # Live probe owns is_active for these; inventory only stamps key_linked.
+            continue
+        slot["is_active"] = bool(has_key)
+
     _save_routing(routing)
     meta["openrouter_free_roster"] = or_models
     meta["preferred"] = _pick_preferred(False, gemini_ok, or_ok)
 
-    statuses = [
-        ProviderStatus(
-            name="gemini",
-            available=bool(gemini_key()),
-            detail=(
+    def _detail_for(name: str) -> tuple[bool, str, list[str]]:
+        if name == "gemini":
+            avail = bool(gemini_key())
+            detail = (
                 f"{gemini_model} OK {gemini_ms}ms"
                 if gemini_ok and gemini_ms
-                else (gemini_err or ("key set" if gemini_key() else "GEMINI_API_KEY missing"))
-            ),
-            models=[settings.gemini_model],
-        ),
-        ProviderStatus(
-            name="openrouter",
-            available=or_ok,
-            detail=(
+                else (gemini_err or ("key linked" if avail else "no key linked"))
+            )
+            return avail, detail, [settings.gemini_model]
+        if name == "openrouter":
+            avail = or_ok
+            detail = (
                 f"{len(or_models)} free models"
                 if or_ok
-                else ("OPENROUTER_API_KEY missing" if not openrouter_key() else "no free models")
-            ),
-            models=(or_models[:8] or [settings.openrouter_free_model]),
-        ),
-    ]
+                else ("no key linked" if not openrouter_key() else "no free models")
+            )
+            return avail, detail, (or_models[:8] or [settings.openrouter_free_model])
+        # Other providers: inventory only (specialization preserved — no dilute live pings).
+        key_fns = {
+            "openai": openai_key,
+            "anthropic": anthropic_key,
+            "perplexity": perplexity_key,
+            "groq": groq_key,
+            "grok": grok_key,
+        }
+        models = {
+            "openai": [settings.openai_primary_model],
+            "anthropic": [settings.anthropic_model],
+            "perplexity": [settings.perplexity_model],
+            "groq": [settings.groq_primary_model, settings.groq_fast_model],
+            "grok": [settings.grok_model],
+        }
+        fn = key_fns.get(name)
+        avail = bool(fn()) if fn else False
+        return avail, ("key linked" if avail else "no key linked"), models.get(name, [])
+
+    statuses: list[ProviderStatus] = []
+    for name in PROVIDER_ORDER:
+        avail, detail, models = _detail_for(name)
+        statuses.append(
+            ProviderStatus(name=name, available=avail, detail=detail, models=models)
+        )
+
     _PREFLIGHT_CACHE.update({"at": time.time(), "statuses": statuses, "meta": meta})
     return statuses, meta
 
