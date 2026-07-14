@@ -26,6 +26,10 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ANTHROPIC_API_KEY", "CLAUDE_API_KEY"),
     )
     groq_api_key: str | None = None
+    xai_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("XAI_API_KEY", "GROK_API_KEY"),
+    )
     gemini_api_key: str | None = None
     google_api_key: str | None = None
     openrouter_api_key: str | None = None
@@ -54,6 +58,7 @@ class Settings(BaseSettings):
     openai_primary_model: str = "gpt-4o"
     groq_primary_model: str = "llama-3.3-70b-versatile"
     groq_fast_model: str = "llama-3.1-8b-instant"
+    grok_model: str = "grok-3"
     # ONLY gemini-3.5-flash — never other Gemini versions
     gemini_model: str = "gemini-3.5-flash"
     openrouter_free_model: str = "openrouter/free"
@@ -63,7 +68,7 @@ class Settings(BaseSettings):
     faiss_top_k: int = 24
     # Preferred auto fallback order (API'd providers only). Missing keys are skipped.
     # Free/unpaid priority: gemini (1M free context tier) → openrouter → perplexity.
-    fallback_preference: str = "anthropic,openai,gemini,openrouter,groq,perplexity"
+    fallback_preference: str = "anthropic,openai,gemini,openrouter,grok,groq,perplexity"
 
 
 settings = Settings()
@@ -107,6 +112,14 @@ def openrouter_key() -> str | None:
 
 def groq_key() -> str | None:
     return _clean(os.environ.get("GROQ_API_KEY") or settings.groq_api_key)
+
+
+def grok_key() -> str | None:
+    return _clean(
+        os.environ.get("XAI_API_KEY")
+        or os.environ.get("GROK_API_KEY")
+        or settings.xai_api_key
+    )
 
 
 def perplexity_key() -> str | None:

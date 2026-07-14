@@ -5,14 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>tokenish</title>
   <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/ui/styles.css?v=0.3.0" />
+  <link rel="stylesheet" href="/ui/styles.css?v=0.4.0" />
 </head>
 <body>
   <div class="app">
     <aside class="sidebar history-sidebar">
       <div class="brand">
-        <h1>tokenish</h1>
-        <span>token use optimizer · v0.3</span>
+        <div class="brand-title-row">
+          <img class="brand-logo" src="/ui/media/tokenish-logo.png" alt="tokenish" width="36" height="36" />
+          <h1>tokenish</h1>
+        </div>
+        <div class="brand-tagline">evry drp cnts</div>
+        <span>token use optimizer · v0.4</span>
       </div>
       <button class="btn primary full new-chat" id="newChat" type="button">new chat</button>
       <div class="section-label">history</div>
@@ -34,7 +38,7 @@
               </div>
             </div>
             <div class="tokex-big" id="lifeSaved">saved tokens 0%</div>
-            <div class="tokex-sub" id="lifeScope">grand total · all chats</div>
+            <div class="tokex-sub" id="lifeScope">grand total (all chats)</div>
             <div class="tokex-grid">
               <div><span class="k">before</span><span id="lifeTotal">0</span></div>
               <div><span class="k">after</span><span id="lifeRun">0</span></div>
@@ -53,11 +57,26 @@
               </div>
             </div>
             <div class="tokex-big" id="chatSaved">saved tokens 0%</div>
-            <div class="tokex-sub" id="chatScope">selected history thread</div>
+            <div class="tokex-sub" id="chatScope">current chat</div>
             <div class="tokex-grid">
               <div><span class="k">before</span><span id="chatTotal">0</span></div>
               <div><span class="k">after</span><span id="chatRun">0</span></div>
               <div><span class="k">saved</span><span id="chatPct">0 (0%)</span></div>
+            </div>
+          </div>
+          <div class="tokex-panel global" id="tokexGlobalPanel" title="Live World Counter — NeoBorg hive tally">
+            <div class="tokex-head global-head">
+              <div class="tokex-label" id="globalLabelText">globally saved tokens</div>
+              <button class="menu-btn" id="openHiveConnect" type="button" title="connect to Live World Counter">⋮</button>
+            </div>
+            <div class="global-body">
+              <img class="global-butterfly" id="butterflyGif" src="/ui/media/butterfly.gif?v=0.3.9" alt="Live World Counter butterfly" width="88" height="88" />
+              <div class="global-stats">
+                <div class="global-pct" id="globalSaved">0.00%</div>
+                <div class="live-world-clock" id="liveWorldClock" aria-label="Live World Counter">00:00:00</div>
+                <div class="tokex-sub global-note" id="globalNote">Live World Counter</div>
+                <div class="tokex-sub global-users" id="globalUsers">connected users online: 0</div>
+              </div>
             </div>
           </div>
         </div>
@@ -91,6 +110,7 @@
         <option value="auto">auto (recommended)</option>
         <option value="gemini">gemini</option>
         <option value="openrouter">openrouter</option>
+        <option value="grok">grok</option>
         <option value="groq">groq</option>
         <option value="anthropic">claude</option>
         <option value="openai">chatgpt</option>
@@ -109,6 +129,7 @@
         <option value="openrouter/free">openrouter/free</option>
         <option value="llama-3.3-70b-versatile">groq 70b</option>
         <option value="llama-3.1-8b-instant">groq 8b</option>
+        <option value="grok-3">grok-3</option>
       </select>
 
       <div class="slot-head">
@@ -147,13 +168,14 @@
 
   <div id="keyModal" class="modal" hidden>
     <div class="modal-card modal-wide">
-      <h2>connect an AI</h2>
-      <p class="modal-lead">Pick at least one. Click the signup link, copy your key, paste it here. That’s it.</p>
+      <h2>connect an API</h2>
+      <p class="modal-lead">Add any <a class="api-explain-link" href="https://www.google.com/search?q=api+explained+in+simple+terms" target="_blank" rel="noopener">API</a> you want. You don’t need every slot. Already linked APIs are marked below. Paste only what you want to add or replace.</p>
 
       <div class="key-slot" data-slot="gemini">
         <div class="key-slot-top">
           <strong>Google Gemini</strong>
           <span class="key-badge free">free tier</span>
+          <span class="key-badge linked" hidden>already linked</span>
           <a class="key-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">get a free key →</a>
         </div>
         <p class="key-hint">An API key lets you chat with Gemini through tokenish. This is our recommended free start.</p>
@@ -164,6 +186,7 @@
         <div class="key-slot-top">
           <strong>OpenRouter (open models)</strong>
           <span class="key-badge free">free models</span>
+          <span class="key-badge linked" hidden>already linked</span>
           <a class="key-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">get a key →</a>
         </div>
         <p class="key-hint">An API key lets tokenish try many free open models if Gemini is busy.</p>
@@ -174,6 +197,7 @@
         <div class="key-slot-top">
           <strong>ChatGPT (OpenAI)</strong>
           <span class="key-badge paid">needs paid plan</span>
+          <span class="key-badge linked" hidden>already linked</span>
           <a class="key-link" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">get a key →</a>
         </div>
         <p class="key-hint">ChatGPT API access usually needs a paid OpenAI account/subscription.</p>
@@ -184,6 +208,7 @@
         <div class="key-slot-top">
           <strong>Claude (Anthropic)</strong>
           <span class="key-badge paid">needs paid plan</span>
+          <span class="key-badge linked" hidden>already linked</span>
           <a class="key-link" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">get a key →</a>
         </div>
         <p class="key-hint">Claude API access usually needs a paid Anthropic account/subscription.</p>
@@ -193,38 +218,43 @@
       <div class="key-slot" data-slot="perplexity">
         <div class="key-slot-top">
           <strong>Perplexity</strong>
+          <span class="key-badge paid">needs paid plan</span>
+          <span class="key-badge linked" hidden>already linked</span>
           <a class="key-link" href="https://www.perplexity.ai/settings/api" target="_blank" rel="noopener">get a key →</a>
         </div>
-        <p class="key-hint">An API key lets you chat with Perplexity through tokenish.</p>
+        <p class="key-hint">Perplexity API access usually needs a paid Perplexity plan/subscription.</p>
         <input id="keyPerplexity" type="password" placeholder="paste perplexity key here" autocomplete="off" />
+      </div>
+
+      <div class="key-slot" data-slot="grok">
+        <div class="key-slot-top">
+          <strong>Grok (xAI)</strong>
+          <span class="key-badge paid">needs paid plan</span>
+          <span class="key-badge linked" hidden>already linked</span>
+          <a class="key-link" href="https://console.x.ai/welcome" target="_blank" rel="noopener">get a key →</a>
+        </div>
+        <p class="key-hint">An API key lets you chat with Grok through tokenish via xAI.</p>
+        <input id="keyGrok" type="password" placeholder="paste grok / xAI key here" autocomplete="off" />
       </div>
 
       <div class="key-slot" data-slot="groq">
         <div class="key-slot-top">
           <strong>Groq (fast 70b / 8b)</strong>
+          <span class="key-badge free">free tier</span>
+          <span class="key-badge linked" hidden>already linked</span>
           <a class="key-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">get a key →</a>
         </div>
         <p class="key-hint">An API key unlocks Groq’s fast Llama models. We try the larger 70b first, then the quicker 8b.</p>
         <input id="keyGroq" type="password" placeholder="paste groq key here" autocomplete="off" />
       </div>
 
-      <div class="key-slot" data-slot="copilot">
-        <div class="key-slot-top">
-          <strong>Microsoft Copilot</strong>
-          <span class="key-badge soon">coming soon</span>
-          <a class="key-link" href="https://copilot.microsoft.com/" target="_blank" rel="noopener">learn more →</a>
-        </div>
-        <p class="key-hint">Copilot chat linking is not ready in tokenish yet. Soft reserved for a later update.</p>
-        <input id="keyCopilot" type="password" placeholder="not wired yet — leave blank" autocomplete="off" disabled />
-      </div>
-
       <div id="customKeySlots"></div>
       <button class="btn" id="addCustomKey" type="button">+ add another AI key</button>
 
       <div class="stack-box">
-        <label for="fallbackPref">If several AIs are connected, try them in this order</label>
-        <p class="key-hint">Paid ones you added go first. Free stack prefers Gemini, then OpenRouter, then Groq, then Perplexity.</p>
-        <input id="fallbackPref" type="text" value="anthropic,openai,gemini,openrouter,groq,perplexity" />
+        <label for="fallbackPref">If several APIs are connected, try them in this order:</label>
+        <p class="key-hint">(1) Paid ones you added go first. (2) The free stack prefers Gemini, then OpenRouter, then Groq, then Perplexity.</p>
+        <input id="fallbackPref" type="text" value="anthropic,openai,gemini,openrouter,grok,groq,perplexity" />
       </div>
 
       <div id="keyModalMsg" class="error" hidden></div>
@@ -238,6 +268,29 @@
       </div>
     </div>
   </div>
-  <script src="/ui/app.js?v=0.3.0"></script>
+
+  <div id="hiveModal" class="modal" hidden>
+    <div class="modal-card">
+      <h2>Live World Counter</h2>
+      <p class="modal-lead">
+        Connect this install to NeoBorg’s collective TOKEX tally. When you save tokens,
+        a factual count is added to the worldwide counter (no prompt text is sent — numbers only).
+      </p>
+      <label class="dont-show">
+        <input type="checkbox" id="hiveOptIn" />
+        join the Live World Counter (opt-in)
+      </label>
+      <label for="hiveUrlInput" class="stack-box" style="display:block;margin-top:10px">
+        Hive URL (optional — leave blank to use this engine’s local hive; set Cloudflare Worker URL for true worldwide)
+      </label>
+      <input id="hiveUrlInput" type="url" placeholder="https://tokenish-tokex-clock.….workers.dev" autocomplete="off" />
+      <div id="hiveModalMsg" class="error" hidden></div>
+      <div class="modal-actions">
+        <button class="btn" id="hiveSkip" type="button">not now</button>
+        <button class="btn primary" id="hiveSave" type="button">save & connect</button>
+      </div>
+    </div>
+  </div>
+  <script src="/ui/app.js?v=0.4.0"></script>
 </body>
 </html>

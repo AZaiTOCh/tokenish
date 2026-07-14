@@ -18,6 +18,7 @@ import httpx
 from tokenish_engine.config import (
     anthropic_key,
     gemini_key,
+    grok_key,
     groq_key,
     openai_key,
     openrouter_key,
@@ -164,6 +165,9 @@ def resolve_provider(provider: str | None, model: str | None, target_engine: str
     if "groq" in blob or "llama-3" in blob:
         if _provider_active("groq"):
             return "groq"
+    if "grok" in blob or "xai" in blob:
+        if _provider_active("grok"):
+            return "grok"
     active = _first_active_fallback()
     if active:
         return active[0]
@@ -188,6 +192,8 @@ def resolve_model(provider: str, model: str | None, target_engine: str) -> str:
         if "8b" in m.lower() or "instant" in m.lower():
             return settings.groq_fast_model
         return settings.groq_primary_model
+    if provider == "grok":
+        return m if m.startswith("grok") else settings.grok_model
     if provider == "perplexity":
         return settings.perplexity_model
     return m or target_engine or settings.gemini_model
@@ -196,6 +202,8 @@ def resolve_model(provider: str, model: str | None, target_engine: str) -> str:
 def _provider_has_key(name: str) -> bool:
     if name == "groq":
         return bool(groq_key())
+    if name == "grok":
+        return bool(grok_key())
     if name == "gemini":
         return bool(gemini_key())
     if name == "openrouter":
@@ -212,7 +220,7 @@ def _provider_has_key(name: str) -> bool:
 def _pref_list() -> list[str]:
     raw = (settings.fallback_preference or "").strip()
     if not raw:
-        return ["anthropic", "openai", "gemini", "openrouter", "groq", "perplexity"]
+        return ["anthropic", "openai", "gemini", "openrouter", "grok", "groq", "perplexity"]
     return [p.strip().lower() for p in raw.split(",") if p.strip()]
 
 
@@ -255,6 +263,8 @@ def _fallback_chain(provider: str, model: str) -> list[tuple[str, str]]:
         elif name == "groq":
             add("groq", settings.groq_primary_model)  # 70b
             add("groq", settings.groq_fast_model)  # 8b
+        elif name == "grok":
+            add("grok", settings.grok_model)
         elif name == "perplexity":
             add("perplexity", settings.perplexity_model)
 
@@ -266,6 +276,8 @@ def _fallback_chain(provider: str, model: str) -> list[tuple[str, str]]:
             first = ("gemini", settings.gemini_model)
         elif provider == "groq":
             first = ("groq", model if model else settings.groq_primary_model)
+        elif provider == "grok":
+            first = ("grok", model if model else settings.grok_model)
         elif provider == "anthropic":
             first = ("anthropic", settings.anthropic_model)
         elif provider == "openai":
@@ -497,7 +509,7 @@ async def chat_stream(
         last_err = _provider_skip_reason(requested[0])
     for prov, mdl in chain:
         try:
-            if prov in {"openai", "groq", "openrouter", "perplexity"}:
+            if prov in {"openai", "groq", "grok", "openrouter", "perplexity"}:
                 vision_ok = prov in {"openai", "openrouter"}
                 async for delta in _openai_compatible_stream(
                     provider=prov,
@@ -557,6 +569,8 @@ async def chat_stream(
 def _base_url(provider: str) -> str:
     if provider == "groq":
         return "https://api.groq.com/openai/v1"
+    if provider == "grok":
+        return "https://api.x.ai/v1"
     if provider == "openrouter":
         return "https://openrouter.ai/api/v1"
     if provider == "perplexity":
@@ -567,6 +581,8 @@ def _base_url(provider: str) -> str:
 def _api_key(provider: str) -> str | None:
     if provider == "groq":
         return groq_key()
+    if provider == "grok":
+        return grok_key()
     if provider == "openrouter":
         return openrouter_key()
     if provider == "perplexity":
@@ -603,7 +619,7 @@ async def _dispatch_once(
         return await _anthropic_chat(model, envelope, history, image_b64, image_mime, images)
     if provider == "gemini":
         return await _gemini_chat(model, envelope, history, image_b64, image_mime, images)
-    if provider in {"groq", "openai", "openrouter", "perplexity"}:
+    if provider in {"groq", "grok", "openai", "openrouter", "perplexity"}:
         vision_ok = provider in {"openai", "openrouter"}
         return await _openai_compatible(
             provider=provider,

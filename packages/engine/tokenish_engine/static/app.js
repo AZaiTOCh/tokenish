@@ -255,6 +255,118 @@ function fillTokexBox(prefix, t, scopeLabel) {
     .join("");
 }
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function localZoneAbbrev(date) {
+  try {
+    const parts = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" }).formatToParts(date);
+    const z = parts.find((p) => p.type === "timeZoneName")?.value;
+    if (z) return z;
+  } catch { /* ignore */ }
+  try {
+    const off = -date.getTimezoneOffset();
+    const sign = off >= 0 ? "+" : "-";
+    const abs = Math.abs(off);
+    return `UTC${sign}${pad2(Math.floor(abs / 60))}:${pad2(abs % 60)}`;
+  } catch {
+    return "";
+  }
+}
+
+function tickLiveWorldClock() {
+  const el = document.getElementById("liveWorldClock");
+  if (!el) return;
+  const d = new Date();
+  const zone = localZoneAbbrev(d);
+  el.textContent = zone
+    ? `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())} ${zone}`
+    : `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+function formatSavedPct(pct) {
+  const n = Number(pct);
+  if (!Number.isFinite(n)) return "0.00";
+  return n.toFixed(2);
+}
+
+function renderGlobalClock(data) {
+  const savedEl = document.getElementById("globalSaved");
+  const noteEl = document.getElementById("globalNote");
+  const usersEl = document.getElementById("globalUsers");
+  if (!savedEl || !noteEl) return;
+  const before = Number(data?.total_tokex || 0);
+  const saved = Number(data?.saved_tokex || 0);
+  const pct =
+    data?.saved_pct != null
+      ? Number(data.saved_pct)
+      : before > 0
+        ? Math.round((saved / before) * 10000) / 100
+        : 0;
+  savedEl.textContent = `${formatSavedPct(pct)}%`;
+  noteEl.textContent = "Live World Counter";
+  noteEl.title = data?.note || "";
+  if (usersEl) {
+    const connected = !!data?.hive_opt_in;
+    const users = Number(data?.users_online ?? 0);
+    usersEl.textContent = connected
+      ? `connected users online: ${users}`
+      : `users online: ${users}`;
+  }
+}
+
+async function syncLifetimeToHive() {
+  lifetime = normalizeTokex(lifetime);
+  try {
+    await fetch("/tokex-clock/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        saved_tokex: Math.max(0, Math.round(lifetime.saved || 0)),
+        total_tokex: Math.max(0, Math.round(lifetime.before || 0)),
+      }),
+    });
+  } catch { /* hive optional */ }
+}
+
+async function refreshTokexClock() {
+  try {
+    await syncLifetimeToHive();
+    const res = await fetch("/tokex-clock", { cache: "no-store" });
+    const data = await res.json();
+    renderGlobalClock(data);
+    return data;
+  } catch {
+    renderGlobalClock({ saved_tokex: 0, total_tokex: 0, hive_opt_in: false, users_online: 0, source: "offline" });
+    return null;
+  }
+}
+
+async function maybeShowHiveConnect(force) {
+  const modal = document.getElementById("hiveModal");
+  if (!modal) return;
+  try {
+    const res = await fetch("/tokex-clock/status", { cache: "no-store" });
+    const data = await res.json();
+    const opt = document.getElementById("hiveOptIn");
+    const url = document.getElementById("hiveUrlInput");
+    if (opt) opt.checked = !!data.hive_opt_in;
+    if (url) url.value = data.hive_url || "";
+    renderGlobalClock(data.clock || data);
+    if (force || data.hive_opt_in == null) {
+      /* show only when forced via ⋮ or first invitation */
+    }
+    if (force) modal.hidden = false;
+    else if (!data.hive_opt_in && !localStorage.getItem("tokenish.hive.prompted")) {
+      modal.hidden = false;
+      localStorage.setItem("tokenish.hive.prompted", "1");
+    }
+  } catch {
+    if (force) modal.hidden = false;
+  }
+}
+
 function closeAllTokexDetailMenus() {
   document.querySelectorAll(".tokex-details-menu.open").forEach((el) => el.classList.remove("open"));
 }
@@ -265,21 +377,21 @@ function renderTokexPanel(thread) {
     "life",
     lifetime,
     lifetime.sends.length
-      ? `grand total · ${lifetime.sends.length} send${lifetime.sends.length === 1 ? "" : "s"} · all chats`
-      : "grand total · all chats",
+      ? `grand total (all chats) · ${lifetime.sends.length} send${lifetime.sends.length === 1 ? "" : "s"}`
+      : "grand total (all chats)",
   );
 
   const th = thread || activeThread();
   const chat = normalizeTokex(th?.tokex);
   if (th) th.tokex = chat;
-  const title = th?.title ? th.title.slice(0, 36) : "this chat";
   fillTokexBox(
     "chat",
     chat,
     chat.sends.length
-      ? `${title} · ${chat.sends.length} send${chat.sends.length === 1 ? "" : "s"}`
-      : `${title} · no sends yet`,
+      ? `current chat (${chat.sends.length} send${chat.sends.length === 1 ? "" : "s"})`
+      : "current chat (0 sends)",
   );
+  refreshTokexClock();
 }
 
 function accumulateTokex(thread, report) {
@@ -302,6 +414,8 @@ function accumulateTokex(thread, report) {
   lifetime.saved += saved;
   lifetime.last = send;
   lifetime.sends.push(send);
+  // NeoBorg / Live World Counter Clock refreshes after each measured send.
+  refreshTokexClock();
 }
 
 function addBubble(role, content, attachments) {
@@ -734,7 +848,7 @@ async function saveKeys(payload) {
 
 async function loadProviders() {
   try {
-    const res = await fetch("/providers");
+    const res = await fetch("/providers", { cache: "no-store" });
     const data = await res.json();
     providersEl.innerHTML = "";
     const modelSet = [];
@@ -742,9 +856,14 @@ async function loadProviders() {
       // show all providers Argus returns
       const row = document.createElement("div");
       row.className = "provider";
-      row.innerHTML = `<span><span class="dot ${p.available ? "ok" : "bad"}"></span>${p.name}</span><span style="color:var(--muted);font-size:0.75rem">${escapeHtml(p.detail || "")}</span>`;
+      const linkedNote = p.available ? " · linked" : "";
+      row.innerHTML = `<span><span class="dot ${p.available ? "ok" : "bad"}"></span>${p.name}${linkedNote}</span><span style="color:var(--muted);font-size:0.75rem">${escapeHtml(p.detail || "")}</span>`;
       providersEl.appendChild(row);
       (p.models || []).forEach((m) => modelSet.push(m));
+    }
+    // Secondary sync: Argus inventory keeps popup greying current even if keys endpoint lagged.
+    if (data.linked_keys?.has) {
+      fillKeyWizard({ has: data.linked_keys.has, prefs: {} });
     }
     const pref = data.preferred;
     fillModels(modelSet, pref?.model);
@@ -884,35 +1003,111 @@ promptEl.addEventListener("keydown", (e) => {
   }
 });
 
-async function maybeShowKeyWizard() {
-  const modal = document.getElementById("keyModal");
-  if (!modal) return;
+let linkedKeysStatus = {
+  gemini: false,
+  openrouter: false,
+  openai: false,
+  anthropic: false,
+  perplexity: false,
+  groq: false,
+  grok: false,
+};
+
+async function refreshLinkedApiSlots() {
+  /** Always re-read which APIs are already linked (launch / reopen / post-save). */
   try {
-    const res = await fetch("/settings/keys");
+    const res = await fetch("/settings/keys", { cache: "no-store" });
     const data = await res.json();
     fillKeyWizard(data);
-    if (data.prefs?.hide_key_wizard) return;
-    modal.hidden = false;
+    return data;
   } catch {
-    modal.hidden = false;
+    return null;
   }
 }
 
-function fillKeyWizard(data) {
-  const map = {
-    keyGemini: data.has?.gemini,
-    keyOpenRouter: data.has?.openrouter,
-    keyOpenAI: data.has?.openai,
-    keyAnthropic: data.has?.anthropic,
-    keyPerplexity: data.has?.perplexity,
-    keyGroq: data.has?.groq,
+async function maybeShowKeyWizard() {
+  const modal = document.getElementById("keyModal");
+  if (!modal) return;
+  const data = await refreshLinkedApiSlots();
+  if (data?.prefs?.hide_key_wizard) return;
+  modal.hidden = false;
+}
+
+function applyLinkedStatus(hasMap) {
+  linkedKeysStatus = {
+    gemini: !!hasMap?.gemini,
+    openrouter: !!hasMap?.openrouter,
+    openai: !!hasMap?.openai,
+    anthropic: !!hasMap?.anthropic,
+    perplexity: !!hasMap?.perplexity,
+    groq: !!hasMap?.groq,
+    grok: !!hasMap?.grok,
   };
-  for (const [id, present] of Object.entries(map)) {
+}
+
+function fillKeyWizard(data) {
+  // Support nested `has`, Argus `linked_keys.has`, and top-level booleans.
+  let src = null;
+  if (data?.has && typeof data.has === "object") src = data.has;
+  else if (data?.linked_keys?.has && typeof data.linked_keys.has === "object") src = data.linked_keys.has;
+  else src = data || {};
+  applyLinkedStatus(src);
+
+  const defaults = {
+    keyGemini: "paste gemini key here",
+    keyOpenRouter: "paste openrouter key here",
+    keyOpenAI: "paste chatgpt/openai key here",
+    keyAnthropic: "paste claude key here",
+    keyPerplexity: "paste perplexity key here",
+    keyGroq: "paste groq key here",
+    keyGrok: "paste grok / xAI key here",
+  };
+  const map = {
+    keyGemini: "gemini",
+    keyOpenRouter: "openrouter",
+    keyOpenAI: "openai",
+    keyAnthropic: "anthropic",
+    keyPerplexity: "perplexity",
+    keyGroq: "groq",
+    keyGrok: "grok",
+  };
+  for (const [id, slot] of Object.entries(map)) {
+    const present = !!linkedKeysStatus[slot];
     const el = document.getElementById(id);
-    if (!el) continue;
-    if (present) {
-      el.placeholder = "already saved — paste to replace";
+    const wrap = document.querySelector(`.key-slot[data-slot="${slot}"]`);
+    if (el) {
+      el.value = "";
+      el.placeholder = present
+        ? "••••••••  already linked — click & paste to replace"
+        : defaults[id];
+      el.classList.toggle("key-linked-input", present);
+      el.disabled = false;
+      el.readOnly = !!present;
+      el.onfocus = present
+        ? () => { el.readOnly = false; el.placeholder = defaults[id]; }
+        : null;
     }
+    if (wrap) {
+      wrap.classList.toggle("linked-slot", present);
+      wrap.setAttribute("data-linked", present ? "true" : "false");
+      const badge = wrap.querySelector(".key-badge.linked");
+      if (badge) {
+        badge.hidden = !present;
+        badge.textContent = "already linked";
+      }
+    }
+  }
+  const sideGemini = document.getElementById("sideKeyGemini");
+  const sideOr = document.getElementById("sideKeyOpenRouter");
+  if (sideGemini) {
+    sideGemini.placeholder = linkedKeysStatus.gemini
+      ? "already linked — paste to replace"
+      : "paste gemini key";
+  }
+  if (sideOr) {
+    sideOr.placeholder = linkedKeysStatus.openrouter
+      ? "already linked — paste to replace"
+      : "paste openrouter key";
   }
   if (data.prefs?.fallback_preference) {
     const pref = document.getElementById("fallbackPref");
@@ -930,6 +1125,7 @@ async function handleKeySave(fromModal) {
         ANTHROPIC_API_KEY: document.getElementById("keyAnthropic")?.value.trim() || "",
         PERPLEXITY_API_KEY: document.getElementById("keyPerplexity")?.value.trim() || "",
         GROQ_API_KEY: document.getElementById("keyGroq")?.value.trim() || "",
+        XAI_API_KEY: document.getElementById("keyGrok")?.value.trim() || "",
         fallback_preference: document.getElementById("fallbackPref")?.value.trim() || "",
         hide_key_wizard: !!document.getElementById("dontShowWizard")?.checked,
       }
@@ -938,27 +1134,38 @@ async function handleKeySave(fromModal) {
         OPENROUTER_API_KEY: document.getElementById("sideKeyOpenRouter")?.value.trim() || "",
       };
 
-  const hasAny = Object.entries(payload).some(
-    ([k, v]) => k.endsWith("_KEY") || k === "OPENAI_API_KEY" || k === "ANTHROPIC_API_KEY" || k === "GROQ_API_KEY" || k === "PERPLEXITY_API_KEY" || k === "GEMINI_API_KEY" || k === "OPENROUTER_API_KEY"
-      ? !!v
-      : false,
+  const newKeys = Object.entries(payload).filter(
+    ([k, v]) => k.endsWith("_KEY") && !!String(v || "").trim(),
   );
-  // Allow save of prefs alone from modal if keys already exist.
-  if (fromModal && !hasAny) {
-    // still try — server accepts prefs-only when a key already saved
-  } else if (!fromModal && !payload.GEMINI_API_KEY && !payload.OPENROUTER_API_KEY) {
+  const hasNew = newKeys.length > 0;
+  const hasExisting = Object.values(linkedKeysStatus).some(Boolean);
+
+  // Gemini / OpenRouter are never required. Any new key OR any already-linked provider is enough.
+  if (fromModal && !hasNew && !hasExisting) {
+    if (msg) {
+      msg.hidden = false;
+      msg.textContent = "paste at least one AI key (any provider). Gemini and OpenRouter are optional.";
+    }
+    showError("paste at least one AI key (any provider)");
+    return;
+  }
+  if (!fromModal && !hasNew && !hasExisting) {
     showError("paste at least one key");
     return;
   }
 
   try {
     const data = await saveKeys(payload);
+    // Re-read inventory from disk/env so greying is never based on optimistic merge only.
+    await refreshLinkedApiSlots();
     if (fromModal) document.getElementById("keyModal").hidden = true;
     if (msg) msg.hidden = true;
     showError("");
     const th = activeThread();
     if (th) {
-      const note = `connections saved${data.saved?.length ? ` (${data.saved.join(", ")})` : ""}. you can keep chatting.`;
+      const note = hasNew
+        ? `connections saved${data.saved?.length ? ` (${data.saved.join(", ")})` : ""}. you can keep chatting.`
+        : "connections kept. you can keep chatting.";
       addBubble("assistant", note);
       th.messages.push({ role: "assistant", content: note });
       saveStore();
@@ -977,11 +1184,38 @@ document.getElementById("keySave")?.addEventListener("click", () => handleKeySav
 document.getElementById("sideKeySave")?.addEventListener("click", () => handleKeySave(false));
 document.getElementById("openKeyWizard")?.addEventListener("click", async () => {
   const modal = document.getElementById("keyModal");
-  try {
-    const res = await fetch("/settings/keys");
-    fillKeyWizard(await res.json());
-  } catch { /* ignore */ }
+  await refreshLinkedApiSlots();
   if (modal) modal.hidden = false;
+});
+document.getElementById("openHiveConnect")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  maybeShowHiveConnect(true);
+});
+document.getElementById("hiveSkip")?.addEventListener("click", () => {
+  document.getElementById("hiveModal").hidden = true;
+});
+document.getElementById("hiveSave")?.addEventListener("click", async () => {
+  const msg = document.getElementById("hiveModalMsg");
+  try {
+    const res = await fetch("/tokex-clock/opt-in", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hive_opt_in: !!document.getElementById("hiveOptIn")?.checked,
+        hive_url: document.getElementById("hiveUrlInput")?.value.trim() || "",
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "could not save");
+    document.getElementById("hiveModal").hidden = true;
+    if (msg) msg.hidden = true;
+    await refreshTokexClock();
+  } catch (e) {
+    if (msg) {
+      msg.hidden = false;
+      msg.textContent = e.message || String(e);
+    }
+  }
 });
 
 document.getElementById("addCustomKey")?.addEventListener("click", () => {
@@ -1036,7 +1270,13 @@ document.addEventListener("click", () => {
   renderThreadList();
   selectThread(activeId);
   fillModels(DEFAULT_MODELS);
-  loadProviders();
+  // Launch order: inventory first (greying), then Argus provider roster (re-syncs linked).
+  refreshLinkedApiSlots().then(() => loadProviders());
   maybeShowKeyWizard();
+  tickLiveWorldClock();
+  setInterval(tickLiveWorldClock, 1000);
+  refreshTokexClock();
+  setInterval(refreshTokexClock, 15000);
+  maybeShowHiveConnect(false);
   retitleAllThreads({ force: true });
 })();
