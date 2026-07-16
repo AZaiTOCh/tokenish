@@ -1,4 +1,4 @@
-# Live World Counter Clock (NeoBorg hive)
+# Live World Counter Clock (Neoborg hive)
 
 Tiny always-on Cloudflare Worker that stores the permanent collective TOKEX tally.
 
@@ -25,4 +25,4 @@ TOKENISH_HIVE_URL=https://tokenish-tokex-clock.<your-subdomain>.workers.dev
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/clock` | Live World Counter Clock tally |
-| POST | `/contribute` | NeoBorg posts `{node_id,saved_tokex,total_tokex}` |
+| POST | `/contribute` | Neoborg posts `{node_id,saved_tokex,total_tokex}` |

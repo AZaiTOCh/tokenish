@@ -27,14 +27,14 @@
         </button>
         <div class="thread-list" id="threadList" hidden></div>
       </div>
-      <div class="grett-slot" id="grettSlot">
-        <div class="grett-slot-head">
-          <img class="grett-slot-earth" src="/ui/media/grett-earth.gif?v=0.4.2" alt="" width="28" height="28" />
-          <div class="section-label grett-slot-title">ask agent grett</div>
+      <div class="gretta-slot" id="grettaSlot">
+        <div class="gretta-slot-head">
+          <img class="gretta-slot-earth" src="/ui/media/gretta-earth.gif?v=0.4.2" alt="" width="28" height="28" />
+          <div class="section-label gretta-slot-title">ask agent gretta</div>
         </div>
-        <div class="grett-slot-status" id="grettSlotStatus">tell Grett what you want to do</div>
-        <textarea id="grettAsk" class="grett-ask" rows="2" placeholder="what do you want to look up or do?"></textarea>
-        <button class="btn primary faint-green full" id="grettAskBtn" type="button">ask grett</button>
+        <div class="gretta-slot-status" id="grettaSlotStatus">tell Gretta what you want to do</div>
+        <textarea id="grettaAsk" class="gretta-ask" rows="2" placeholder="what do you want to look up or do?"></textarea>
+        <button class="btn primary faint-green full" id="grettaAskBtn" type="button">ask gretta</button>
       </div>
     </aside>
 
@@ -181,15 +181,15 @@
     </aside>
   </div>
 
-  <div id="grettModal" class="modal" hidden>
-    <div class="modal-card grett-card">
-      <img class="grett-earth" src="/ui/media/grett-earth.gif?v=0.4.2" alt="" width="120" height="120" />
-      <h2>Hi I’m Grett</h2>
+  <div id="grettaModal" class="modal" hidden>
+    <div class="modal-card gretta-card">
+      <img class="gretta-earth" src="/ui/media/gretta-earth.gif?v=0.4.2" alt="" width="120" height="120" />
+      <h2>Hi I’m Gretta</h2>
       <p class="modal-lead">We connect everyday folk to the most suitable AI search and knowledge needs.</p>
-      <p class="modal-lead grett-quiet">You don’t need to prompt me. Just tell me what you want to look up or do.</p>
+      <p class="modal-lead gretta-quiet">You don’t need to prompt me. Just tell me what you want to look up or do.</p>
       <div class="modal-actions">
-        <button class="btn" id="grettSkipIntro" type="button">SKIP</button>
-        <button class="btn primary faint-green" id="grettStart" type="button">Lets <span class="start-word">START</span></button>
+        <button class="btn" id="grettaSkipIntro" type="button">SKIP</button>
+        <button class="btn primary faint-green" id="grettaStart" type="button">Lets <span class="start-word">START</span></button>
       </div>
     </div>
   </div>
@@ -214,29 +214,29 @@
     </div>
   </div>
 
-  <div id="grettApiModal" class="modal" hidden>
-    <div class="modal-card grett-card">
-      <img class="grett-earth" src="/ui/media/grett-earth.gif?v=0.4.2" alt="" width="96" height="96" />
+  <div id="grettaApiModal" class="modal" hidden>
+    <div class="modal-card gretta-card">
+      <img class="gretta-earth" src="/ui/media/gretta-earth.gif?v=0.4.2" alt="" width="96" height="96" />
       <h2>Welcome back!</h2>
       <p class="modal-lead">Now in order to access our AI models, we need to link you to their secure APIs.</p>
       <p class="modal-lead">An API is like a waiter at a restaurant: it takes your request to another system, brings back the result, and lets the two communicate without you needing to know how the kitchen works.</p>
       <div class="modal-actions">
-        <button class="btn" id="grettSkipApi" type="button">SKIP</button>
-        <button class="btn primary faint-green" id="grettNextKeys" type="button">NEXT</button>
+        <button class="btn" id="grettaSkipApi" type="button">SKIP</button>
+        <button class="btn primary faint-green" id="grettaNextKeys" type="button">NEXT</button>
       </div>
     </div>
   </div>
 
-  <div id="grettNeedModal" class="modal" hidden>
-    <div class="modal-card grett-card">
-      <img class="grett-earth" src="/ui/media/grett-earth.gif?v=0.4.2" alt="" width="96" height="96" />
-      <h2>Hi — Grett here</h2>
+  <div id="grettaNeedModal" class="modal" hidden>
+    <div class="modal-card gretta-card">
+      <img class="gretta-earth" src="/ui/media/gretta-earth.gif?v=0.4.2" alt="" width="96" height="96" />
+      <h2>Hi — Gretta here</h2>
       <p class="modal-lead">What do you want to look up or do? Tell me so I can line up the most suitable LLM.</p>
-      <textarea id="grettNeedInput" class="grett-ask" rows="3" placeholder="e.g. I want to assess a legal document"></textarea>
-      <div id="grettNeedMsg" class="error" hidden></div>
+      <textarea id="grettaNeedInput" class="gretta-ask" rows="3" placeholder="e.g. I want to assess a legal document"></textarea>
+      <div id="grettaNeedMsg" class="error" hidden></div>
       <div class="modal-actions">
-        <button class="btn" id="grettNeedSkip" type="button">SKIP</button>
-        <button class="btn primary faint-green" id="grettNeedGo" type="button">line up my AI</button>
+        <button class="btn" id="grettaNeedSkip" type="button">SKIP</button>
+        <button class="btn primary faint-green" id="grettaNeedGo" type="button">line up my AI</button>
       </div>
     </div>
   </div>

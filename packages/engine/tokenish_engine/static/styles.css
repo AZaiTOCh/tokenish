@@ -710,9 +710,9 @@ textarea {
   border-radius: 6px;
 }
 .modal-close:hover { color: #18181b; background: #f4f4f5; }
-.grett-card { align-items: center; text-align: center; }
-.grett-card .modal-lead { text-align: center; }
-.grett-earth {
+.gretta-card { align-items: center; text-align: center; }
+.gretta-card .modal-lead { text-align: center; }
+.gretta-earth {
   width: 120px;
   height: 120px;
   object-fit: contain;
@@ -720,38 +720,38 @@ textarea {
   border-radius: 0;
   margin-bottom: 4px;
 }
-.grett-quiet { font-size: 0.82rem !important; }
-.grett-slot {
+.gretta-quiet { font-size: 0.82rem !important; }
+.gretta-slot {
   margin-top: auto;
   padding-top: 8px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
-.grett-slot-head {
+.gretta-slot-head {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
 }
-.grett-slot-earth {
+.gretta-slot-earth {
   width: 28px;
   height: 28px;
   object-fit: contain;
   background: transparent;
   flex-shrink: 0;
 }
-.grett-slot-title {
+.gretta-slot-title {
   margin: 0 !important;
   flex: 1;
 }
-.grett-slot-status {
+.gretta-slot-status {
   color: var(--muted);
   font-size: 0.75rem;
   line-height: 1.35;
   margin: 0 0 6px;
   min-height: 2.2em;
 }
-.grett-ask {
+.gretta-ask {
   width: 100%;
   resize: vertical;
   min-height: 52px;

@@ -1,5 +1,5 @@
 """
-Grett — LLM protoprompter, qualifier, and router (v0.4.2).
+Gretta — LLM protoprompter, qualifier, and router (v0.4.2).
 
 Keeps talk short for everyday users. Chooses from a *curated* capability map
 and Argus-linked providers. Does NOT invent “latest news winners” from raw
@@ -161,7 +161,7 @@ def recommend(
 
     note = " ".join(lines[:3])
     return {
-        "agent": "Grett",
+        "agent": "Gretta",
         "truthful": True,
         "method": "curated_capability_map",
         "scrape_used": False,
@@ -176,7 +176,7 @@ def recommend(
         },
         "note": note,
         "caveat": (
-            "Grett does not scrape the live web to crown a ‘best model’ — "
+            "Gretta does not scrape the live web to crown a ‘best model’ — "
             "choices use a curated map plus your linked APIs."
         ),
     }

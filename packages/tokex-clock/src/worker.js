@@ -32,7 +32,7 @@ export default {
       });
     }
     if (url.pathname === "/" || url.pathname === "/health") {
-      return json({ ok: true, clock: "Live World Counter Clock", agent: "NeoBorg" });
+      return json({ ok: true, clock: "Live World Counter Clock", agent: "Neoborg" });
     }
     return json({ ok: false, error: "not found" }, 404);
   },
@@ -61,7 +61,7 @@ export class TokexClock {
       const pct = total > 0 ? Math.round((saved / total) * 10000) / 100 : 0;
       return json({
         clock: "Live World Counter Clock",
-        agent: "NeoBorg",
+        agent: "Neoborg",
         saved_tokex: saved,
         total_tokex: total,
         saved_pct: pct,

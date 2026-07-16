@@ -38,10 +38,10 @@ tokenish
 
 ## what’s in v0.4 (highlights)
 
-### Live World Counter (NeoBorg hive)
+### Live World Counter (Neoborg hive)
 
 - **Third TOKEX panel** (global): upright butterfly GIF, large hive `saved %` (2 decimals), local **H:M:S + timezone**, and **connected users online**.
-- Flow: Rainman → Agatha → **Mrs. Brown** (validate numbers) → **NeoBorg** (cross-vet + ledger) → optional hive broadcast.
+- Flow: Rainman → Agatha → **Mrs. Brown** (validate numbers) → **Neoborg** (cross-vet + ledger) → optional hive broadcast.
 - Discrete modules:
   - `tokenish_engine/agents/tokex_clock.py` — Live World Counter client (opt-in, sync, fetch)
   - `tokenish_engine/hive_store.py` — engine-local hive (absolute per-node lifetime TOKEX + presence)
@@ -59,7 +59,8 @@ tokenish
 | **Rainman** | Factual tokopt-cylinder interrogation (no LLM) |
 | **Agatha** | SQLite archive (`~/.tokenish/agatha.db`) |
 | **Mrs. Brown** | Matriarch hive intake — numeric TOKEX only |
-| **NeoBorg** | Cross-vet + local ledger + Live World Counter broadcast |
+| **Neoborg** | Cross-vet + local ledger + Live World Counter broadcast |
+| **Gretta** | Onboarding + curated LLM protoprompter / qualifier / router |
 
 ### Product UX
 

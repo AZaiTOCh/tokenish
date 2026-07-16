@@ -186,14 +186,14 @@ async def get_scoreboard() -> dict[str, Any]:
     return {"ok": True, **scoreboard_payload()}
 
 
-class GrettPayload(BaseModel):
+class GrettaPayload(BaseModel):
     need: str = ""
 
 
-@app.post("/grett/recommend")
-async def grett_recommend_route(payload: GrettPayload) -> dict[str, Any]:
+@app.post("/gretta/recommend")
+async def gretta_recommend_route(payload: GrettaPayload) -> dict[str, Any]:
     try:
-        from tokenish_engine.agents.grett import recommend
+        from tokenish_engine.agents.gretta import recommend
 
         return {"ok": True, **recommend(payload.need, linked=_provider_key_status())}
     except Exception as exc:

@@ -52,9 +52,9 @@ const PROVIDER_OPTION_LABELS = {
 let providerHealth = {};
 
 const AUTH_KEY = "tokenish.auth.v1";
-const GRETT_INTRO_KEY = "tokenish.grett.intro.v1";
-const GRETT_SEEN_KEY = "tokenish.grett.seen.v1";
-const GRETT_PICK_KEY = "tokenish.grett.pick.v1";
+const GRETTA_INTRO_KEY = "tokenish.gretta.intro.v1";
+const GRETTA_SEEN_KEY = "tokenish.gretta.seen.v1";
+const GRETTA_PICK_KEY = "tokenish.gretta.pick.v1";
 
 let files = [];
 let threads = [];
@@ -1243,47 +1243,47 @@ function showModal(id, on) {
 }
 
 async function startLaunchFlow() {
-  // Strict order: Grett intro → sign-in → API explainer → key list.
-  if (!sessionStorage.getItem(GRETT_INTRO_KEY)) {
-    showModal("grettModal", true);
+  // Strict order: Gretta intro → sign-in → API explainer → key list.
+  if (!sessionStorage.getItem(GRETTA_INTRO_KEY)) {
+    showModal("grettaModal", true);
     return;
   }
   if (!loadAuth()) {
     showModal("authModal", true);
     return;
   }
-  if (!sessionStorage.getItem(GRETT_SEEN_KEY)) {
-    showModal("grettApiModal", true);
+  if (!sessionStorage.getItem(GRETTA_SEEN_KEY)) {
+    showModal("grettaApiModal", true);
     return;
   }
   await maybeShowKeyWizard();
 }
 
-document.getElementById("grettStart")?.addEventListener("click", () => {
-  sessionStorage.setItem(GRETT_INTRO_KEY, "1");
-  // Always require sign-in + Grett API explainer before keys — never skip.
-  sessionStorage.removeItem(GRETT_SEEN_KEY);
-  showModal("grettModal", false);
+document.getElementById("grettaStart")?.addEventListener("click", () => {
+  sessionStorage.setItem(GRETTA_INTRO_KEY, "1");
+  // Always require sign-in + Gretta API explainer before keys — never skip.
+  sessionStorage.removeItem(GRETTA_SEEN_KEY);
+  showModal("grettaModal", false);
   showModal("authModal", true);
 });
 
-document.getElementById("grettSkipIntro")?.addEventListener("click", () => {
-  sessionStorage.setItem(GRETT_INTRO_KEY, "1");
-  showModal("grettModal", false);
+document.getElementById("grettaSkipIntro")?.addEventListener("click", () => {
+  sessionStorage.setItem(GRETTA_INTRO_KEY, "1");
+  showModal("grettaModal", false);
   showModal("authModal", true);
 });
 
 function finishAuth(user) {
   saveAuth(user);
   showModal("authModal", false);
-  // Same Grett window: Welcome back + API waiter explainer, then NEXT.
-  showModal("grettApiModal", true);
+  // Same Gretta window: Welcome back + API waiter explainer, then NEXT.
+  showModal("grettaApiModal", true);
 }
 
 document.getElementById("authSkip")?.addEventListener("click", () => {
-  sessionStorage.setItem(GRETT_INTRO_KEY, "1");
+  sessionStorage.setItem(GRETTA_INTRO_KEY, "1");
   showModal("authModal", false);
-  showModal("grettApiModal", true);
+  showModal("grettaApiModal", true);
 });
 
 document.getElementById("authContinue")?.addEventListener("click", () => {
@@ -1309,43 +1309,43 @@ document.getElementById("authFacebook")?.addEventListener("click", () => {
   finishAuth({ email: "facebook-user@local", provider: "facebook-local", at: Date.now() });
 });
 
-document.getElementById("grettNextKeys")?.addEventListener("click", async () => {
-  sessionStorage.setItem(GRETT_SEEN_KEY, "1");
-  showModal("grettApiModal", false);
+document.getElementById("grettaNextKeys")?.addEventListener("click", async () => {
+  sessionStorage.setItem(GRETTA_SEEN_KEY, "1");
+  showModal("grettaApiModal", false);
   // ONLY after NEXT does the API key list open.
   await maybeShowKeyWizard(true);
 });
 
-document.getElementById("grettSkipApi")?.addEventListener("click", () => {
-  sessionStorage.setItem(GRETT_SEEN_KEY, "1");
-  showModal("grettApiModal", false);
-  showGrettNeedModal();
+document.getElementById("grettaSkipApi")?.addEventListener("click", () => {
+  sessionStorage.setItem(GRETTA_SEEN_KEY, "1");
+  showModal("grettaApiModal", false);
+  showGrettaNeedModal();
 });
 
-function loadGrettPick() {
+function loadGrettaPick() {
   try {
-    return JSON.parse(localStorage.getItem(GRETT_PICK_KEY) || "null");
+    return JSON.parse(localStorage.getItem(GRETTA_PICK_KEY) || "null");
   } catch {
     return null;
   }
 }
 
-function saveGrettPick(pick) {
-  localStorage.setItem(GRETT_PICK_KEY, JSON.stringify(pick));
-  renderGrettSlotStatus(pick);
+function saveGrettaPick(pick) {
+  localStorage.setItem(GRETTA_PICK_KEY, JSON.stringify(pick));
+  renderGrettaSlotStatus(pick);
 }
 
-function renderGrettSlotStatus(pick) {
-  const el = document.getElementById("grettSlotStatus");
+function renderGrettaSlotStatus(pick) {
+  const el = document.getElementById("grettaSlotStatus");
   if (!el) return;
   if (!pick?.note) {
-    el.textContent = "tell Grett what you want to do";
+    el.textContent = "tell Gretta what you want to do";
     return;
   }
   el.textContent = pick.note;
 }
 
-function grettRecommendLocal(need) {
+function grettaRecommendLocal(need) {
   const text = String(need || "").toLowerCase();
   const map = [
     { provider: "openai", model: "gpt-4o", keys: ["logo", "brand", "design", "creative", "image gen", "illustrat", "artwork", "company logo", "code", "plan", "brainstorm", "json"], blurb: "ChatGPT gpt-4o — strong for creative briefs and design work" },
@@ -1373,7 +1373,7 @@ function grettRecommendLocal(need) {
     note = `Ok — ${best.provider} is lined up for you (${best.blurb}).`;
   }
   return {
-    agent: "Grett",
+    agent: "Gretta",
     note,
     selected: {
       provider: best.provider,
@@ -1384,8 +1384,8 @@ function grettRecommendLocal(need) {
   };
 }
 
-function applyGrettSelection(data) {
-  saveGrettPick(data);
+function applyGrettaSelection(data) {
+  saveGrettaPick(data);
   const sel = data?.selected || {};
   if (sel.provider && [...(providerSelect?.options || [])].some((o) => o.value === sel.provider)) {
     providerSelect.value = sel.provider;
@@ -1394,10 +1394,10 @@ function applyGrettSelection(data) {
   updateSlotDots();
 }
 
-async function resolveGrettNeed(need) {
+async function resolveGrettaNeed(need) {
   let data = null;
   try {
-    const res = await fetch("/grett/recommend", {
+    const res = await fetch("/gretta/recommend", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ need }),
@@ -1408,44 +1408,44 @@ async function resolveGrettNeed(need) {
     } catch {
       data = null;
     }
-    if (!res.ok || !data?.note) data = grettRecommendLocal(need);
+    if (!res.ok || !data?.note) data = grettaRecommendLocal(need);
   } catch {
-    data = grettRecommendLocal(need);
+    data = grettaRecommendLocal(need);
   }
-  applyGrettSelection(data);
+  applyGrettaSelection(data);
   return data;
 }
 
-function showGrettNeedModal() {
-  const input = document.getElementById("grettNeedInput");
-  const msg = document.getElementById("grettNeedMsg");
+function showGrettaNeedModal() {
+  const input = document.getElementById("grettaNeedInput");
+  const msg = document.getElementById("grettaNeedMsg");
   if (input) input.value = "";
   if (msg) msg.hidden = true;
-  showModal("grettNeedModal", true);
+  showModal("grettaNeedModal", true);
 }
 
-async function askGrett() {
-  const need = document.getElementById("grettAsk")?.value.trim() || "";
-  const status = document.getElementById("grettSlotStatus");
+async function askGretta() {
+  const need = document.getElementById("grettaAsk")?.value.trim() || "";
+  const status = document.getElementById("grettaSlotStatus");
   if (!need) {
-    if (status) status.textContent = "just tell Grett what you want — no fancy prompt needed.";
+    if (status) status.textContent = "just tell Gretta what you want — no fancy prompt needed.";
     return;
   }
-  if (status) status.textContent = "Grett is lining up a fit…";
-  const data = await resolveGrettNeed(need);
+  if (status) status.textContent = "Gretta is lining up a fit…";
+  const data = await resolveGrettaNeed(need);
   if (status) status.textContent = data?.note || "lined up.";
 }
 
-document.getElementById("grettAskBtn")?.addEventListener("click", askGrett);
+document.getElementById("grettaAskBtn")?.addEventListener("click", askGretta);
 
-document.getElementById("grettNeedGo")?.addEventListener("click", async () => {
-  const need = document.getElementById("grettNeedInput")?.value.trim() || "";
-  const msg = document.getElementById("grettNeedMsg");
+document.getElementById("grettaNeedGo")?.addEventListener("click", async () => {
+  const need = document.getElementById("grettaNeedInput")?.value.trim() || "";
+  const msg = document.getElementById("grettaNeedMsg");
   if (!need) {
     if (msg) {
       msg.hidden = false;
       msg.className = "error";
-      msg.textContent = "tell Grett what you want to look up or do.";
+      msg.textContent = "tell Gretta what you want to look up or do.";
     }
     return;
   }
@@ -1455,20 +1455,20 @@ document.getElementById("grettNeedGo")?.addEventListener("click", async () => {
     msg.textContent = "lining up the best linked AI…";
   }
   await refreshLinkedApiSlots();
-  const data = await resolveGrettNeed(need);
-  showModal("grettNeedModal", false);
+  const data = await resolveGrettaNeed(need);
+  showModal("grettaNeedModal", false);
   const th = activeThread();
   if (th && data?.note) {
     addBubble("assistant", data.note);
     th.messages.push({ role: "assistant", content: data.note });
     saveStore();
   }
-  const slotAsk = document.getElementById("grettAsk");
+  const slotAsk = document.getElementById("grettaAsk");
   if (slotAsk) slotAsk.value = need;
 });
 
-document.getElementById("grettNeedSkip")?.addEventListener("click", () => {
-  showModal("grettNeedModal", false);
+document.getElementById("grettaNeedSkip")?.addEventListener("click", () => {
+  showModal("grettaNeedModal", false);
 });
 
 function fitTextToWidth(el, targetPx) {
@@ -1619,7 +1619,7 @@ async function handleKeySave(fromModal) {
     }
     await loadProviders();
     updateSlotDots();
-    if (fromModal) showGrettNeedModal();
+    if (fromModal) showGrettaNeedModal();
   } catch (e) {
     showError(e.message || String(e));
     if (msg) { msg.hidden = false; msg.textContent = e.message || String(e); }
@@ -1628,7 +1628,7 @@ async function handleKeySave(fromModal) {
 
 document.getElementById("keySkip")?.addEventListener("click", () => {
   document.getElementById("keyModal").hidden = true;
-  showGrettNeedModal();
+  showGrettaNeedModal();
 });
 document.getElementById("keySave")?.addEventListener("click", () => handleKeySave(true));
 document.getElementById("openKeyWizard")?.addEventListener("click", async () => {
@@ -1726,10 +1726,10 @@ document.addEventListener("click", () => {
   renderThreadList();
   selectThread(activeId);
   fillModels(DEFAULT_MODELS);
-  // Launch: inventory → Argus → Grett/auth → API keys (not the old key wizard first).
+  // Launch: inventory → Argus → Gretta/auth → API keys (not the old key wizard first).
   refreshLinkedApiSlots().then(() => loadProviders()).then(() => updateSlotDots());
   startLaunchFlow();
-  renderGrettSlotStatus(loadGrettPick());
+  renderGrettaSlotStatus(loadGrettaPick());
   tickLiveWorldClock();
   setInterval(tickLiveWorldClock, 1000);
   refreshTokexClock();

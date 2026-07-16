@@ -1,7 +1,7 @@
-"""tokenish agents — Mumblz, Rainman, Agatha, Mrs. Brown, Neoborg, Grett."""
+"""tokenish agents — Mumblz, Rainman, Agatha, Mrs. Brown, Neoborg, Gretta."""
 
 from tokenish_engine.agents.agatha import archive_rainman_brief, cylinder_rollups, recent_runs, scoreboard_payload
-from tokenish_engine.agents.grett import recommend as grett_recommend
+from tokenish_engine.agents.gretta import recommend as gretta_recommend
 from tokenish_engine.agents.mrs_brown import intake_local_savings
 from tokenish_engine.agents.mumblz import (
     interpret_thread_title,
@@ -33,5 +33,5 @@ __all__ = [
     "intake_local_savings",
     "cross_vet_and_record",
     "clock_snapshot",
-    "grett_recommend",
+    "gretta_recommend",
 ]
