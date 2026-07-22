@@ -21,7 +21,7 @@ Lexicon: [GLOSSARY](../GLOSSARY.md)
 
 ### What actually saves tokens (engineering fact)
 
-**OptComp / [vTOPU](../cylinders/CYLINDER_REGISTER.md) cylinders** reduce TOKEX. Agentics above mostly **measure, gate, route, title, or broadcast**.
+**OptComp / [vTOPU](../cylinders/CYLINDER_REGISTER.md) cylinders** (aka [virtual cores](https://www.google.com/search?q=virtual+cores&rlz=1C1CHBD_enCA1170CA1170&oq=virtual+cores&gs_lcrp=EgZjaHJvbWUqBggAEEUYOzIGCAAQRRg7MgcIARAAGIAEMggIAhAAGBYYHjIICAMQABgWGB4yCAgEEAAYFhgeMgYIBRBFGDwyBggGEEUYPDIGCAcQRRg80gEIMTk5OWowajSoAgCwAgA&sourceid=chrome&source=chrome.ob&ie=UTF-8)) reduce TOKEX. Agentics above mostly **measure, gate, route, title, or broadcast**.
 
 **Hi0** is a **cylinder** (*Highzero*), not a registry agentic — see [HI0](../cylinders/HI0.md).
 
