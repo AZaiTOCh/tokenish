@@ -1,4 +1,4 @@
-# **vTOPU Register (OptComp)
+# vTOPU Register (OptComp)
 
 **[vTOPU](https://github.com/AZaiTOCh/turkishlyso/blob/main/docs/cylinders/CYLINDER_REGISTER.md)** = [Virtual](https://www.ibm.com/docs/en/power8/9080-MHE?topic=processors-virtual) [Token Optimization](https://developer.ibm.com/articles/awb-token-optimization-backbone-of-effective-prompt-engineering/) [Processing Unit](https://medium.com/@ramu.mangalarapu1622/the-story-of-processing-units-understanding-the-brains-behind-modern-machines-39ebbdc83578).
 
