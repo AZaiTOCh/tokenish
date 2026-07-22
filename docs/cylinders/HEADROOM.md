@@ -1,4 +1,6 @@
-# headroom
+# headroom (*Max*)
+
+Upstream: [headroom](https://github.com/headroomlabs-ai/headroom)
 
 Soft compression on long text/logs/docs; already token-gated. Must not cross loyalty without consent.
 

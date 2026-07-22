@@ -265,8 +265,16 @@ def _provider_has_key(name: str) -> bool:
 def _pref_list() -> list[str]:
     raw = (settings.fallback_preference or "").strip()
     if not raw:
-        return ["anthropic", "openai", "gemini", "openrouter", "grok", "groq", "perplexity"]
+        return ["anthropic", "gemini", "openrouter", "grok", "groq", "perplexity"]
     return [p.strip().lower() for p in raw.split(",") if p.strip()]
+
+
+def _is_updated_gpt_model(model: str | None) -> bool:
+    """gpt-4o is treated as old for auto priority; newer OpenAI ids may jump ahead of Gemini."""
+    s = (model or "").lower()
+    if not s or "gpt-4o" in s:
+        return False
+    return any(x in s for x in ("gpt-4.1", "gpt-5", "o3", "o4", "o1"))
 
 
 def _fallback_chain(
@@ -277,9 +285,10 @@ def _fallback_chain(
 ) -> list[tuple[str, str]]:
     """
     Auto stack (everyday explanation):
-    1) Paid APIs you added (Claude, then ChatGPT) go first.
-    2) Free stack: Gemini 3.5 Flash first (large free allowance),
-       then OpenRouter free models, then Groq 70b → 8b, then Perplexity.
+    1) Claude if linked + usable.
+    2) Updated GPT only (not gpt-4o) if linked.
+    3) Gemini 3.5 Flash as the default everyday door.
+    4) Free/open: OpenRouter → Groq → Grok → Perplexity.
     Explicit provider selection is STRICT — never silently swap Gemini → Gemma.
     With images: only vision-capable doors (no silent strip on Groq/text-only OR).
     """
@@ -336,14 +345,17 @@ def _fallback_chain(
             return
         chain.append(item)
 
+    # Claude first when linked; Gemini is the everyday default (gpt-4o does not jump it).
+    if _provider_usable("anthropic"):
+        add("anthropic", settings.anthropic_model)
+    if _provider_usable("openai") and _is_updated_gpt_model(settings.openai_primary_model):
+        add("openai", settings.openai_primary_model)
+    add("gemini", settings.gemini_model)
+
     for name in _pref_list():
-        if name == "anthropic":
-            add("anthropic", settings.anthropic_model)
-        elif name == "openai":
-            add("openai", settings.openai_primary_model)
-        elif name == "gemini":
-            add("gemini", settings.gemini_model)
-        elif name == "openrouter":
+        if name in {"anthropic", "gemini", "openai"}:
+            continue  # already handled with updated-GPT gate
+        if name == "openrouter":
             if openrouter_key():
                 for mid in _openrouter_roster_models(for_images=has_images)[:10]:
                     add("openrouter", mid)
@@ -358,7 +370,6 @@ def _fallback_chain(
             if not has_images:
                 add("perplexity", settings.perplexity_model)
 
-    add("gemini", settings.gemini_model)
     if chain:
         return chain
     if openrouter_key():

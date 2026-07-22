@@ -73,9 +73,10 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-20250514"
     faiss_mib_bits: int = 512
     faiss_top_k: int = 24
-    # Preferred auto fallback order (API'd providers only). Missing keys are skipped.
-    # Free/unpaid priority: gemini (1M free context tier) → openrouter → perplexity.
-    fallback_preference: str = "anthropic,openai,gemini,openrouter,grok,groq,perplexity"
+    # Preferred auto fallback order. Gemini is the everyday default.
+    # OpenAI only jumps ahead when openai_primary_model is an updated GPT (not gpt-4o).
+    # Claude jumps ahead whenever linked + usable.
+    fallback_preference: str = "anthropic,gemini,openrouter,grok,groq,perplexity"
 
 
 settings = Settings()

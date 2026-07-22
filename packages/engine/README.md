@@ -1,6 +1,6 @@
 # Tokenish Engine
 
-FastAPI Split-Execution / tokopt optimizer (**v0.4.4**).
+FastAPI Split-Execution / tokopt optimizer (**v0.4.5**).
 
 ```bash
 pip install -e ".[dev]"
@@ -16,5 +16,5 @@ Optional form flags on `/chat` and `/compile`: `enable_its`, `enable_ffmpeg` (bo
 Agents live under `tokenish_engine/agents/` (Mumblz, Rainman, Agatha, Mrs. Brown, Neoborg, Gretta, tokex_clock). Media cylinder: `tokenish_engine/media/`. Hive store: `hive_store.py`. Worldwide Worker scaffold: `../tokex-clock/`.
 
 Version chronology (newest → oldest), neologisms, and DoP: [VERSION_LOG.md](VERSION_LOG.md).  
-Agent + cylinder docs (linked profiles): [Agent Registry](../../docs/agents/AGENT_REGISTRY.md) · [Cylinder Register](../../docs/cylinders/CYLINDER_REGISTER.md).  
+Agent + cylinder docs (linked profiles): [Agent Registry](../../docs/agents/AGENT_REGISTRY.md) · [vToPU Register](../../docs/cylinders/CYLINDER_REGISTER.md).  
 Root overview: [README.md](../../README.md) · GitHub: https://github.com/tknsh/tokenish

@@ -102,8 +102,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   gap: 8px;
 }
 .brand-logo {
-  width: 45.78px;
-  height: 45.78px;
+  width: 51.27px;
+  height: 51.27px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
@@ -680,6 +680,30 @@ textarea {
   flex: 1; min-height: 72px; max-height: 180px; resize: vertical;
   background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 12px; color: #18181b;
 }
+.select#model.auto-locked,
+#model.auto-locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: #f4f4f5;
+  color: #71717a;
+}
+.slot-hint.muted {
+  margin: 4px 0 8px;
+  font-size: 0.7rem;
+  color: #a1a1aa;
+  font-style: italic;
+}
+.fidelity-tip {
+  color: #002868;
+  border-bottom: 1px dotted #002868;
+  cursor: help;
+  font-weight: 600;
+}
+.fidelity-tip:hover,
+.fidelity-tip:focus {
+  background: #eef2ff;
+  outline: none;
+}
 .btn {
   border: 1px solid var(--border); background: #fff;
   border-radius: 10px; padding: 10px 14px; cursor: pointer; color: #18181b;
@@ -714,7 +738,13 @@ textarea {
   border-radius: 6px;
 }
 .modal-close:hover { color: #18181b; background: #f4f4f5; }
-.gretta-card { align-items: center; text-align: center; }
+.bubble .reply-meta {
+  margin-top: 0.55rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-style: italic;
+  line-height: 1.35;
+}
 .gretta-card .modal-lead { text-align: center; }
 .gretta-earth {
   width: 120px;

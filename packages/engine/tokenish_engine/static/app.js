@@ -21,7 +21,7 @@ const DEFAULT_MODELS = [
 ];
 
 const MODELS_BY_PROVIDER = {
-  auto: ["gpt-4o", "claude-sonnet-4-20250514", "gemini-3.5-flash", "openrouter/free", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "grok-3", "sonar"],
+  auto: ["gemini-3.5-flash", "claude-sonnet-4-20250514", "gpt-4o", "openrouter/free", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "grok-3", "sonar"],
   gemini: ["gemini-3.5-flash"],
   openrouter: ["openrouter/free"],
   groq: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
@@ -59,6 +59,8 @@ const GRETTA_PICK_KEY = "tokenish.gretta.pick.v1";
 let files = [];
 let threads = [];
 let activeId = null;
+/** Set when Gretta fidelity gate rejects current attachments/need. */
+let materialBlocked = false;
 /** Lifetime totals across ALL chats — never reset on new chat. */
 let lifetime = emptyTokex();
 let linkedKeysStatus = {
@@ -246,6 +248,12 @@ async function stageIncomingFiles(incoming) {
   if (skipped.length) {
     showError(`could not attach all files: ${skipped.slice(0, 4).join("; ")}${skipped.length > 4 ? "…" : ""}`);
   }
+  if (next.length) {
+    const gate = assessMaterialSuitability(next, "");
+    publishGrettaNote(gate.note, { blocked: !gate.ok });
+  } else {
+    materialBlocked = false;
+  }
 }
 
 function escapeHtml(s) {
@@ -257,13 +265,183 @@ function escapeHtml(s) {
 
 function formatReply(text) {
   let s = String(text || "");
+  // Keep trailing reply-meta line intact for HTML styling.
+  let meta = "";
+  const metaMatch = s.match(/\n\n— (.+)$/);
+  if (metaMatch) {
+    meta = metaMatch[1];
+    s = s.slice(0, -metaMatch[0].length);
+  }
   s = s.replace(/^#{1,6}\s+/gm, "");
   s = s.replace(/\*\*([^*]+)\*\*/g, "$1");
   s = s.replace(/__([^_]+)__/g, "$1");
   s = s.replace(/\*([^*]+)\*/g, "$1");
   s = s.replace(/^---+$/gm, "");
   s = s.replace(/^>\s?/gm, "");
-  return escapeHtml(s);
+  let html = escapeHtml(s);
+  if (meta) {
+    html += `<div class="reply-meta">— ${escapeHtml(meta)}</div>`;
+  }
+  return html;
+}
+
+function formatReplyStamp(provider, model, tokex) {
+  const when = new Date().toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const who = [provider, model].filter(Boolean).join(" / ") || "unknown model";
+  let tokens = "";
+  if (tokex) {
+    const after = Number(
+      tokex.after ?? tokex.tokex_this_run ?? tokex.optimized_tokens ?? 0,
+    );
+    const before = Number(
+      tokex.before ?? tokex.total_tokex ?? tokex.original_tokens ?? after,
+    );
+    const saved = Number(
+      tokex.saved ?? tokex.saved_tokex ?? tokex.saved_tokens ?? Math.max(0, before - after),
+    );
+    if (after > 0 || before > 0) {
+      tokens = ` · ${after.toLocaleString()} tokens`;
+      if (before > 0) {
+        const pct = Math.round((saved / before) * 10000) / 100;
+        tokens += ` (${before.toLocaleString()}→${after.toLocaleString()}, saved ${pct}%)`;
+      }
+    }
+  }
+  return `— ${who} · ${when}${tokens}`;
+}
+
+/** Auto: Gemini 3.5 Flash first, unless Claude or an updated GPT (not gpt-4o) is linked. */
+function isUpdatedGptModel(model) {
+  const s = String(model || "").toLowerCase();
+  if (!s || s.includes("gpt-4o")) return false; // gpt-4o / 4o-mini = old for auto priority
+  return /gpt-4\.1|gpt-5|\bo3\b|\bo4\b|\bo1\b/.test(s);
+}
+
+function pickAutoPreferredModel() {
+  // 1) Claude if linked + usable
+  if (linkedKeysStatus.anthropic && healthForProvider("anthropic").usable) {
+    return "claude-sonnet-4-20250514";
+  }
+  // 2) Updated GPT only (gpt-4o does NOT beat Gemini)
+  if (linkedKeysStatus.openai && healthForProvider("openai").usable) {
+    const openaiModel = (MODELS_BY_PROVIDER.openai || [])[0] || "gpt-4o";
+    if (isUpdatedGptModel(openaiModel)) return openaiModel;
+  }
+  // 3) Gemini everyday default
+  if (linkedKeysStatus.gemini) return "gemini-3.5-flash";
+
+  const rest = [
+    ["openrouter", "openrouter/free"],
+    ["groq", "llama-3.3-70b-versatile"],
+    ["grok", "grok-3"],
+    ["perplexity", "sonar"],
+  ];
+  for (const [prov, mdl] of rest) {
+    if (linkedKeysStatus[prov] && healthForProvider(prov).usable) return mdl;
+  }
+  for (const [prov, mdl] of rest) {
+    if (linkedKeysStatus[prov]) return mdl;
+  }
+  return "gemini-3.5-flash";
+}
+
+const FIDELITY_RISK_RE =
+  /\b(contract|agreement|nda|msa|sow\b|legal|deposition|affidavit|subpoena|court.?filing|litigation|patent|trademark|hipaa|phi\b|medical.?record|clinical.?trial|tax.?return|10-?k|10-?q|sec.?filing|prospectus|scientific|arxiv|theorem|lemma|proof\b|equation|mission.?critical|regulated.?record)\b/i;
+
+function fidelityBlockReason(blob) {
+  const t = String(blob || "").toLowerCase();
+  if (/\b(contract|agreement|nda|msa|sow\b)\b/.test(t)) {
+    return "nah — that reads like a contract/agreement. every clause matters, so Tokenish sits this one out.";
+  }
+  if (/\b(legal|deposition|affidavit|subpoena|court|litigation)\b/.test(t)) {
+    return "nah — legal stuff. we’d risk fidelity, so not clear for Tokenish.";
+  }
+  if (/\b(scientific|arxiv|theorem|lemma|proof\b|equation)\b/.test(t)) {
+    return "nah — science/math papers. one dropped line can wreck the answer.";
+  }
+  if (/\b(hipaa|phi\b|medical|clinical|tax.?return|10-?k|10-?q|sec.?filing|prospectus|patent|regulated|mission.?critical)\b/.test(t)) {
+    return "nah — regulated / mission-critical. Tokenish won’t touch it.";
+  }
+  return "nah — that material isn’t clear for Tokenish (fidelity risk).";
+}
+
+/** Rough pre-send TOKEX band from file kinds (not a measured Agatha number). */
+function estimateTokexBand(files) {
+  const list = Array.from(files || []);
+  if (!list.length) return null;
+  let lo = 4;
+  let hi = 10;
+  for (const f of list) {
+    const n = String(f.name || "").toLowerCase();
+    const t = String(f.type || "").toLowerCase();
+    if (/\.(csv|tsv)$/.test(n)) {
+      lo = Math.max(lo, 12);
+      hi = Math.max(hi, 28);
+    } else if (/\.(json|jsonl)$/.test(n)) {
+      lo = Math.max(lo, 10);
+      hi = Math.max(hi, 25);
+    } else if (/\.(pdf|docx?|md|txt)$/.test(n)) {
+      lo = Math.max(lo, 6);
+      hi = Math.max(hi, 18);
+    } else if (/^image\//.test(t) || /\.(png|jpe?g|webp|gif|bmp)$/.test(n)) {
+      lo = Math.max(lo, 3);
+      hi = Math.max(hi, 12);
+    } else if (/^video\//.test(t) || /\.(mp4|webm|mov)$/.test(n)) {
+      lo = Math.max(lo, 8);
+      hi = Math.max(hi, 35);
+    }
+  }
+  return { lo, hi };
+}
+
+function assessMaterialSuitability(fileList, needText) {
+  const files = Array.from(fileList || []);
+  const blob = [
+    needText || "",
+    ...files.map((f) => `${f.name || ""} ${f.type || ""}`),
+  ].join(" ");
+  if (FIDELITY_RISK_RE.test(blob)) {
+    return {
+      ok: false,
+      note: fidelityBlockReason(blob),
+    };
+  }
+  if (!files.length && !String(needText || "").trim()) {
+    return { ok: true, note: "" };
+  }
+  if (!files.length) {
+    return {
+      ok: true,
+      note: "clear for Tokenish. bare chat usually saves ~0% TOKEX — attach material if you want real savings.",
+    };
+  }
+  const band = estimateTokexBand(files);
+  const est = band
+    ? ` est ~${band.lo}–${band.hi}% TOKEX if cylinders fire (rough, pre-measure).`
+    : "";
+  return {
+    ok: true,
+    note: `clear for Tokenish.${est}`,
+  };
+}
+
+function publishGrettaNote(note, { blocked = false } = {}) {
+  if (!note) return;
+  materialBlocked = !!blocked;
+  const th = activeThread();
+  const status = document.getElementById("grettaSlotStatus");
+  if (status) status.textContent = note;
+  if (th) {
+    addBubble("assistant", note);
+    th.messages.push({ role: "assistant", content: note });
+    saveStore();
+  }
 }
 
 function fillTokexBox(prefix, t, scopeLabel) {
@@ -951,7 +1129,7 @@ function applyAvailabilityUI() {
   updateSlotDots();
 }
 
-function fillModels(models, preferred) {
+function fillModels(models, preferred, { forcePreferred = false } = {}) {
   const provider = providerSelect?.value || "auto";
   const fromProvider = MODELS_BY_PROVIDER[provider] || DEFAULT_MODELS;
   const current = modelSelect.value;
@@ -962,22 +1140,55 @@ function fillModels(models, preferred) {
     ? [...fromProvider, ...(filtered || [])]
     : fromProvider;
   const uniq = [...new Set(pool.filter(Boolean))];
-  modelSelect.innerHTML = uniq.map((m) => {
-    const owner = provider === "auto" ? (PROVIDER_BY_MODEL[m] || "") : provider;
-    const h = healthForProvider(owner);
-    const label = escapeHtml(m) + escapeHtml(reasonSuffix(h.reason));
-    const deg = h.reason !== "ok" ? " degraded" : "";
-    return `<option class="${deg.trim()}" value="${escapeHtml(m)}">${label}</option>`;
-  }).join("");
-  let pick = preferred || current || uniq[0] || "gemini-3.5-flash";
+
+  let pick;
+  if (provider === "auto") {
+    // Prefer live route override; otherwise always the auto-stack head among linked keys.
+    pick = forcePreferred && preferred ? preferred : pickAutoPreferredModel();
+  } else if (forcePreferred) {
+    pick = preferred || uniq[0];
+  } else {
+    pick = preferred || current || uniq[0] || "gemini-3.5-flash";
+  }
   if (provider === "gemini" || (String(pick).startsWith("gemini") && pick !== "gemini-3.5-flash")) {
     if (provider === "gemini") pick = "gemini-3.5-flash";
     else if (String(pick).startsWith("gemini") && pick !== "gemini-3.5-flash") pick = "gemini-3.5-flash";
   }
-  if ([...modelSelect.options].some((o) => o.value === pick)) {
+
+  if (provider === "auto") {
+    // Lock: only show the chosen model; dropdown disabled so user can't override.
+    const owner = PROVIDER_BY_MODEL[pick] || "";
+    const h = healthForProvider(owner);
+    const label = `${pick}${reasonSuffix(h.reason)} · auto`;
+    modelSelect.innerHTML = `<option value="${escapeHtml(pick)}">${escapeHtml(label)}</option>`;
     modelSelect.value = pick;
-  } else if (modelSelect.options.length) {
-    modelSelect.selectedIndex = 0;
+    modelSelect.disabled = true;
+    modelSelect.classList.add("auto-locked");
+    modelSelect.title = "auto chooses the model — switch connection off auto to pick your own";
+  } else {
+    modelSelect.disabled = false;
+    modelSelect.classList.remove("auto-locked");
+    modelSelect.title = "";
+    modelSelect.innerHTML = uniq.map((m) => {
+      const h = healthForProvider(provider);
+      const label = escapeHtml(m) + escapeHtml(reasonSuffix(h.reason));
+      const deg = h.reason !== "ok" ? " degraded" : "";
+      return `<option class="${deg.trim()}" value="${escapeHtml(m)}">${label}</option>`;
+    }).join("");
+    if ([...modelSelect.options].some((o) => o.value === pick)) {
+      modelSelect.value = pick;
+    } else if (modelSelect.options.length) {
+      modelSelect.selectedIndex = 0;
+    }
+  }
+
+  const hint = document.getElementById("autoModelHint");
+  if (hint) {
+    hint.hidden = provider !== "auto";
+    if (provider === "auto") {
+      const owner = PROVIDER_BY_MODEL[modelSelect.value] || "?";
+      hint.textContent = `auto locked · ${owner} / ${modelSelect.value}`;
+    }
   }
   applyAvailabilityUI();
 }
@@ -1072,6 +1283,14 @@ async function send() {
   if (!prompt && !files.length) return;
   showError("");
 
+  const preGate = assessMaterialSuitability(files, prompt);
+  if (!preGate.ok) {
+    publishGrettaNote(preGate.note, { blocked: true });
+    showError("send blocked — material not suitable for Tokenish (fidelity risk)");
+    return;
+  }
+  materialBlocked = false;
+
   if (thread.messages.length === 1 && thread.messages[0].content === WELCOME) {
     thread.title = titleFromPrompt(prompt);
   }
@@ -1106,6 +1325,9 @@ async function send() {
   const loader = makeTknshLoader();
   let bubble = null;
   let assistant = "";
+  let usedProv = provider;
+  let usedMdl = model;
+  let tokexSnap = null;
 
   try {
     const res = await fetch("/chat", { method: "POST", body: fd });
@@ -1125,17 +1347,29 @@ async function send() {
         try { evt = JSON.parse(line); } catch { continue; }
         if (evt.type === "meta") {
           accumulateTokex(thread, evt.tokex || evt.meter);
+          tokexSnap = evt.tokex || evt.meter || tokexSnap;
           renderTokexPanel(thread);
           saveStore();
           if (evt.attachment_warning) showError(evt.attachment_warning);
+          if (evt.provider) usedProv = evt.provider;
+          if (evt.model) usedMdl = evt.model;
           if (evt.provider || evt.model) {
             const who = `${evt.provider || "?"} / ${evt.model || "?"}`;
             showError(`answering with ${who}`);
+            // Reflect live auto pick in the Models dropdown immediately.
+            if (providerSelect?.value === "auto" && evt.model) {
+              fillModels(MODELS_BY_PROVIDER.auto, evt.model, { forcePreferred: true });
+            }
           }
         } else if (evt.type === "routing") {
+          if (evt.provider) usedProv = evt.provider;
+          if (evt.model) usedMdl = evt.model;
           const who = `${evt.provider || "?"} / ${evt.model || "?"}`;
           const why = evt.fallback_reason ? ` — ${evt.fallback_reason}` : "";
           showError(`switched to ${who}${why}`);
+          if (providerSelect?.value === "auto" && evt.model) {
+            fillModels(MODELS_BY_PROVIDER.auto, evt.model, { forcePreferred: true });
+          }
         } else if (evt.type === "delta") {
           if (!bubble) {
             loader.remove();
@@ -1150,7 +1384,10 @@ async function send() {
       }
     }
     if (!assistant) throw new Error("empty reply — try another model or OpenRouter key");
-    thread.messages.push({ role: "assistant", content: assistant });
+    const stamp = formatReplyStamp(usedProv, usedMdl, tokexSnap || thread.tokex?.last);
+    const stamped = `${assistant}\n\n${stamp}`;
+    if (bubble) bubble.querySelector(".body").innerHTML = formatReply(stamped);
+    thread.messages.push({ role: "assistant", content: stamped });
     thread.updatedAt = Date.now();
     renderThreadList();
     saveStore();
@@ -1162,8 +1399,10 @@ async function send() {
     showError(e.message || String(e));
     if (!bubble) bubble = addBubble("assistant", "");
     const errText = "error: " + (e.message || e);
-    bubble.querySelector(".body").innerHTML = formatReply(errText);
-    thread.messages.push({ role: "assistant", content: errText });
+    const stamp = formatReplyStamp(usedProv, usedMdl, tokexSnap);
+    const stamped = `${errText}\n\n${stamp}`;
+    bubble.querySelector(".body").innerHTML = formatReply(stamped);
+    thread.messages.push({ role: "assistant", content: stamped });
     saveStore();
     loadProviders(true).catch(() => {});
   }
@@ -1339,7 +1578,7 @@ function renderGrettaSlotStatus(pick) {
   const el = document.getElementById("grettaSlotStatus");
   if (!el) return;
   if (!pick?.note) {
-    el.textContent = "tell Gretta what you want to do";
+    el.textContent = "tell Gretta what you want done, or upload material";
     return;
   }
   el.textContent = pick.note;
@@ -1428,12 +1667,18 @@ async function askGretta() {
   const need = document.getElementById("grettaAsk")?.value.trim() || "";
   const status = document.getElementById("grettaSlotStatus");
   if (!need) {
-    if (status) status.textContent = "just tell Gretta what you want — no fancy prompt needed.";
+    if (status) status.textContent = "tell Gretta what you want done, or upload material.";
+    return;
+  }
+  if (status) status.textContent = "Gretta is checking suitability…";
+  const gate = assessMaterialSuitability(files, need);
+  if (!gate.ok) {
+    publishGrettaNote(gate.note, { blocked: true });
     return;
   }
   if (status) status.textContent = "Gretta is lining up a fit…";
   const data = await resolveGrettaNeed(need);
-  if (status) status.textContent = data?.note || "lined up.";
+  publishGrettaNote(gate.note || data?.note || "lined up.", { blocked: false });
 }
 
 document.getElementById("grettaAskBtn")?.addEventListener("click", askGretta);
@@ -1445,30 +1690,34 @@ document.getElementById("grettaNeedGo")?.addEventListener("click", async () => {
     if (msg) {
       msg.hidden = false;
       msg.className = "error";
-      msg.textContent = "tell Gretta what you want to look up or do.";
+      msg.textContent = "tell Gretta what you want done, or hit got it and upload material.";
     }
     return;
   }
   if (msg) {
     msg.hidden = false;
     msg.className = "modal-lead";
-    msg.textContent = "lining up the best linked AI…";
+    msg.textContent = "checking suitability + lining up a linked AI…";
   }
   await refreshLinkedApiSlots();
+  const gate = assessMaterialSuitability(files, need);
+  if (!gate.ok) {
+    showModal("grettaNeedModal", false);
+    publishGrettaNote(gate.note, { blocked: true });
+    const slotAsk = document.getElementById("grettaAsk");
+    if (slotAsk) slotAsk.value = need;
+    return;
+  }
   const data = await resolveGrettaNeed(need);
   showModal("grettaNeedModal", false);
-  const th = activeThread();
-  if (th && data?.note) {
-    addBubble("assistant", data.note);
-    th.messages.push({ role: "assistant", content: data.note });
-    saveStore();
-  }
+  publishGrettaNote(gate.note || data?.note || "lined up.", { blocked: false });
   const slotAsk = document.getElementById("grettaAsk");
   if (slotAsk) slotAsk.value = need;
 });
 
 document.getElementById("grettaNeedSkip")?.addEventListener("click", () => {
   showModal("grettaNeedModal", false);
+  publishGrettaNote("Thx for the API setup! Upload ur material so I can see if we can help.", { blocked: false });
 });
 
 function fitTextToWidth(el, targetPx) {
@@ -1637,7 +1886,12 @@ document.getElementById("openKeyWizard")?.addEventListener("click", async () => 
   if (modal) modal.hidden = false;
 });
 providerSelect?.addEventListener("change", () => {
-  fillModels(MODELS_BY_PROVIDER[providerSelect.value] || DEFAULT_MODELS);
+  const p = providerSelect.value;
+  if (p === "auto") {
+    fillModels(MODELS_BY_PROVIDER.auto, pickAutoPreferredModel(), { forcePreferred: true });
+  } else {
+    fillModels(MODELS_BY_PROVIDER[p] || DEFAULT_MODELS);
+  }
   applyAvailabilityUI();
 });
 modelSelect?.addEventListener("change", () => {

@@ -1,6 +1,6 @@
 # tokenish
 
-**Version:** 0.4.4 · **Runtime:** local FastAPI daemon + chat UI · **GitHub:** [`tknsh/tokenish`](https://github.com/tknsh/tokenish)
+**Version:** 0.4.5 · **Runtime:** local FastAPI daemon + chat UI · **GitHub:** [`tknsh/tokenish`](https://github.com/tknsh/tokenish)
 
 Open-source **token use optimizer**. Every prompt and attachment runs through a **split-execution / tokopt (OptComp)** pipeline, then dispatches to the model you select.
 
@@ -14,7 +14,7 @@ Open-source **token use optimizer**. Every prompt and attachment runs through a 
 |-------|------------|
 | **Runtime** | Local daemon (`127.0.0.1:8741`) + static chat UI |
 | **Language** | Python 3.10+ |
-| **OptComp** | Tokopt cylinders — see [Cylinder Register](docs/cylinders/CYLINDER_REGISTER.md) |
+| **OptComp** | Tokopt cylinders — see [vToPU Register](docs/cylinders/CYLINDER_REGISTER.md) |
 | **Agentics** | **1)** Argus · **2)** Mumblz · **3)** Rainman · **4)** Agatha · **5)** Mrs. Brown · **6)** Neoborg · **7)** Gretta · **8)** tokex_clock — [Agent Registry](docs/agents/AGENT_REGISTRY.md) |
 | **Providers** | Gemini 3.5 Flash, OpenRouter, OpenAI, Anthropic, Groq, Grok, Perplexity (user keys) |
 | **Hive** | Live World Counter — engine-local + optional Cloudflare Worker (`packages/tokex-clock/`) |
@@ -73,10 +73,10 @@ prompt + doc → Hi0 / dedupe / format_csv / headroom / ITS (conditional)
 **Agents:**  
 **1) [Argus](docs/agents/ARGUS.md)** · **2) [Mumblz](docs/agents/MUMBLZ.md)** · **3) [Rainman](docs/agents/RAINMAN.md)** · **4) [Agatha](docs/agents/AGATHA.md)** · **5) [Mrs. Brown](docs/agents/MRS_BROWN.md)** · **6) [Neoborg](docs/agents/NEOBORG.md)** · **7) [Gretta](docs/agents/GRETTA.md)** · **8) [tokex_clock](docs/agents/TOKEX_CLOCK.md)**
 
-**Cylinders:**  
+**Cylinders (vToPU):**  
 **1) [ingest](docs/cylinders/INGEST.md)** · **2) [LCS](docs/cylinders/LCS.md)** · **3) [split-exec](docs/cylinders/SPLIT_EXEC.md)** · **4) [Hi0](docs/cylinders/HI0.md)** · **5) [dedupe](docs/cylinders/DEDUPE.md)** · **6) [format_csv](docs/cylinders/FORMAT_CSV.md)** · **7) [headroom](docs/cylinders/HEADROOM.md)** · **8) [ITS](docs/cylinders/ITS.md)** · **9) [FAISS/MIB](docs/cylinders/FAISS_MIB.md)** · **10) [pxpipe](docs/cylinders/PXPIPE.md)** · **11) [tokenizer gate](docs/cylinders/TOKENIZER_GATE.md)** · **12) [vision](docs/cylinders/VISION.md)** · **13) [passthrough](docs/cylinders/PASSTHROUGH.md)** · **14) [ffmpeg/Clop](docs/cylinders/FFMPEG.md)** · **15) [Memtrove](docs/cylinders/MEMTROVE.md)**
 
-Canonical directories: [Agent Registry](docs/agents/AGENT_REGISTRY.md) · [Cylinder Register](docs/cylinders/CYLINDER_REGISTER.md)
+Canonical directories: [Agent Registry](docs/agents/AGENT_REGISTRY.md) · [vToPU Register](docs/cylinders/CYLINDER_REGISTER.md)
 
 ---
 
@@ -107,6 +107,15 @@ Full chronology: [`packages/engine/VERSION_LOG.md`](packages/engine/VERSION_LOG.
 ## Version evolution
 
 Listed **newest → oldest**. Changes use **`1)`, `2)`, `3)`** format. Detail + DoP: [`VERSION_LOG.md`](packages/engine/VERSION_LOG.md).
+
+### v0.4.5 — Gretta fidelity gate · Auto lock · vToPU · reply stamps
+**Commit timestamp:** 2026-07-22 07:17:39 -04:00
+
+**1) Reply stamp** — LLM · datetime · TOKEX on every reply  
+**2) Auto locks Models** — Gemini-first; Claude / updated GPT (not gpt-4o) may jump  
+**3) Gretta suitability gate** — brief reject or clear + est TOKEX; chatbox fidelity warning  
+**4) vToPU Register** — brands + virtual-core columns + glossary links  
+**5) Logo +12% · Tag: italic tagline  
 
 ### v0.4.4 — Clop+ffmpeg media OptComp ON
 **Commit date:** 2026-07-21
@@ -192,7 +201,7 @@ Listed **newest → oldest**. Changes use **`1)`, `2)`, `3)`** format. Detail + 
 | Doc | Path |
 |-----|------|
 | [Agent Registry](docs/agents/AGENT_REGISTRY.md) | Canonical agent profiles |
-| [Cylinder Register](docs/cylinders/CYLINDER_REGISTER.md) | OptComp cylinder profiles |
+| [vToPU Register](docs/cylinders/CYLINDER_REGISTER.md) | OptComp / vToPU cylinder (virtual core) profiles |
 | [VERSION_LOG](packages/engine/VERSION_LOG.md) | Full version evolution + DoP |
 | [Engine README](packages/engine/README.md) | FastAPI endpoints |
 | [Download / Windows exe](docs/download.md) | Packaging notes |

@@ -7,7 +7,41 @@ Factual release ledger. **Measured** = real TOKEX/Agatha numbers. **Unknown** = 
 
 Listed **newest → oldest**. Changes inside each version use the concise **`1)`, `2)`, `3)`** format for instant review. Commit dates are first release commits on `main` (or DoP day when pre-tag).
 
-**Agents:** [Agent Registry](../../docs/agents/AGENT_REGISTRY.md) · **Cylinders:** [Cylinder Register](../../docs/cylinders/CYLINDER_REGISTER.md)
+**Agents:** [Agent Registry](../../docs/agents/AGENT_REGISTRY.md) · **Cylinders:** [vToPU Register](../../docs/cylinders/CYLINDER_REGISTER.md)
+
+---
+
+### v0.4.5 — Gretta fidelity gate · Auto lock · vToPU · reply stamps
+**Commit timestamp:** 2026-07-22 07:17:39 -04:00 (US Eastern)  
+**DoP:** 2026-07-22
+
+Product UX + registry rename after peer-review charter work. Fidelity-first: unsuitable material blocked; Auto defaults to Gemini unless Claude / updated GPT linked.
+
+**1) Reply stamp**  
+- Every assistant reply ends with LLM · local date/time · TOKEX token count (before→after, saved %)
+
+**2) Auto connection**  
+- Picks live stack head and **locks** Models (greyed; no manual override)  
+- Order: Claude (if linked) → updated GPT only (not gpt-4o) → **gemini-3.5-flash** → OpenRouter → Groq → Grok → Perplexity  
+- Backend `_fallback_chain` + UI `pickAutoPreferredModel` aligned
+
+**3) Gretta suitability gate**  
+- Intro: “Let's see if we can help you save some tokens for your uploads.”  
+- Post-API: “Thx for the API setup! Upload ur material…”  
+- After upload/need: brief casual reject reason **or** “clear for Tokenish” + rough est TOKEX %  
+- Chatbox grey placeholder warns off legal/scientific/contracts/mission-critical  
+- Hover tip on **fidelity loss**; send blocked when gate fails
+
+**4) vToPU Register** (was Cylinder Register)  
+- Glossary links: Virtual · Token Optimization · Processing Unit · virtual cores  
+- Columns: `#` · Cylinders (virtual cores) · Type (italic brands) · Status · Since  
+- Brands: Ingestly, Luxy, Volpe, Highzero, Slimz, Forciv, Max, Chunkdrop, Chump, Pixish, Tokegater, Previsioner, Passopter, Fidelvid, Memtrove ([Moorcheh](https://github.com/moorcheh-ai))  
+- Parked notes: MicrOpt/UltraOpt; OKF (catalog ≠ TOKEX compressor)
+
+**5) UI polish**  
+- Logo +12%; *Tag: evry drp cnts*; cache bust `?v=0.4.5`
+
+**Out of scope this cut:** dedicated Qwen/Kimi/Gemma popup slots (use OpenRouter umbrella); AZ Signal Engine daemon wrap (AZ already has Hi0+TOKEX; verdict rarely)
 
 ---
 
@@ -141,7 +175,7 @@ Implements peer-pack P0/P1: sequential Rainman deltas, dual envelope gate fallba
 - Claude / ChatGPT / Perplexity / Groq when pasted
 
 **4) Cylinder concert**  
-- See [Cylinder Register](../../docs/cylinders/CYLINDER_REGISTER.md)
+- See [vToPU Register](../../docs/cylinders/CYLINDER_REGISTER.md)
 
 ---
 
