@@ -55,7 +55,7 @@ Parent index: [README](../README.md)
 
 | Term | Definition |
 |------|------------|
-| **IVV operator** (*I viv*) | **I**nverse **V**ice **V**ersa — single turnkey on an ordered pair: reverse **and** component-wise negate. Example: IVV(2, 35) = (−35, −2). Inverse alone: e.g. toward (−2, 35) in the founder’s illustration of sign-flip on the first slot’s story; vice versa alone: (35, 2). **IVV** does both in one step → (−35, −2). |
+| **IVV operator** | **I**nverse **V**ice **V**ersa — single turnkey on an ordered pair: reverse **and** component-wise negate. Example: IVV(2, 35) = (−35, −2). Inverse alone: e.g. toward (−2, 35) in the founder’s illustration of sign-flip on the first slot’s story; vice versa alone: (35, 2). **IVV** does both in one step → (−35, −2). |
 | **IVV symbol** | **`<>`** — ASCII glyph (avoids ⟡ / U+27E1, already common on calculators). Written `(a, b) <> ↦ (−b, −a)`. |
 
 ### IVV — prior art check (honest)
