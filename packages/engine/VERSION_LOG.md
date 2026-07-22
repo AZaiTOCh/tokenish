@@ -45,6 +45,8 @@ Product UX + registry rename after peer-review charter work. Fidelity-first: uns
 
 **Post-ship UX fix (same version, 2026-07-22 07:37:13 -04:00):** Gretta launch flow — incomplete onboarding always restarts at intro (“Hi I’m Gretta”), not API-only; onboard marked done after need/upload step.
 
+**Post-ship UX fix 2 (same version, 2026-07-22 08:06:17 -04:00):** Root cause — localStorage onboard flag auto-opened key/API wizard; launch is now session-step gated so every new window starts at Hi I’m Gretta.
+
 **Out of scope this cut:** dedicated Qwen/Kimi/Gemma popup slots (use OpenRouter umbrella); AZ Signal Engine daemon wrap (AZ already has Hi0+TOKEX; verdict rarely)
 
 ---

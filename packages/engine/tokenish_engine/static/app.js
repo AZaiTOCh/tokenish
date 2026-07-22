@@ -52,10 +52,11 @@ const PROVIDER_OPTION_LABELS = {
 let providerHealth = {};
 
 const AUTH_KEY = "tokenish.auth.v1";
-const GRETTA_INTRO_KEY = "tokenish.gretta.intro.v2";
-const GRETTA_SEEN_KEY = "tokenish.gretta.seen.v2";
+const GRETTA_INTRO_KEY = "tokenish.gretta.intro.v3";
+const GRETTA_SEEN_KEY = "tokenish.gretta.seen.v3";
 const GRETTA_PICK_KEY = "tokenish.gretta.pick.v1";
-const GRETTA_ONBOARD_DONE = "tokenish.gretta.onboard.v2";
+const GRETTA_FLOW = "tokenish.gretta.flow.v3"; // session step: intro|auth|api|keys|need|done
+
 
 let files = [];
 let threads = [];
@@ -1482,56 +1483,76 @@ function showModal(id, on) {
   if (el) el.hidden = !on;
 }
 
-function markGrettaOnboardDone() {
-  localStorage.setItem(GRETTA_ONBOARD_DONE, "1");
-  sessionStorage.setItem(GRETTA_INTRO_KEY, "1");
-  sessionStorage.setItem(GRETTA_SEEN_KEY, "1");
+function hideAllLaunchModals() {
+  ["grettaModal", "authModal", "grettaApiModal", "grettaNeedModal"].forEach((id) =>
+    showModal(id, false),
+  );
+  const keyModal = document.getElementById("keyModal");
+  if (keyModal) keyModal.hidden = true;
 }
 
-function isGrettaOnboardDone() {
-  return localStorage.getItem(GRETTA_ONBOARD_DONE) === "1";
+function setGrettaFlow(step) {
+  sessionStorage.setItem(GRETTA_FLOW, step);
+}
+
+function getGrettaFlow() {
+  return sessionStorage.getItem(GRETTA_FLOW) || "";
 }
 
 async function startLaunchFlow() {
-  // Strict order: Gretta intro → sign-in → API explainer → key list → need/upload.
-  // If onboarding never finished, ALWAYS restart at intro (don't land on API-only).
-  if (isGrettaOnboardDone()) {
-    await maybeShowKeyWizard(false);
+  // Session-only gate. New window/tab = empty sessionStorage → always Hi I'm Gretta first.
+  // Never auto-open the key/API list just because localStorage has old "onboard done" flags.
+  hideAllLaunchModals();
+
+  const step = getGrettaFlow();
+  if (!step || step === "intro") {
+    setGrettaFlow("intro");
+    showModal("grettaModal", true);
     return;
   }
-  sessionStorage.removeItem(GRETTA_INTRO_KEY);
-  sessionStorage.removeItem(GRETTA_SEEN_KEY);
-  showModal("authModal", false);
-  showModal("grettaApiModal", false);
-  showModal("grettaNeedModal", false);
-  const keyModal = document.getElementById("keyModal");
-  if (keyModal) keyModal.hidden = true;
-  showModal("grettaModal", true);
+  if (step === "auth") {
+    showModal("authModal", true);
+    return;
+  }
+  if (step === "api") {
+    showModal("grettaApiModal", true);
+    return;
+  }
+  if (step === "keys") {
+    await maybeShowKeyWizard(true);
+    return;
+  }
+  if (step === "need") {
+    showGrettaNeedModal();
+    return;
+  }
+  // step === "done" → no launch popups
 }
 
 document.getElementById("grettaStart")?.addEventListener("click", () => {
   sessionStorage.setItem(GRETTA_INTRO_KEY, "1");
-  // Always require sign-in + Gretta API explainer before keys — never skip.
-  sessionStorage.removeItem(GRETTA_SEEN_KEY);
+  setGrettaFlow("auth");
   showModal("grettaModal", false);
   showModal("authModal", true);
 });
 
 document.getElementById("grettaSkipIntro")?.addEventListener("click", () => {
   sessionStorage.setItem(GRETTA_INTRO_KEY, "1");
+  setGrettaFlow("auth");
   showModal("grettaModal", false);
   showModal("authModal", true);
 });
 
 function finishAuth(user) {
   saveAuth(user);
+  setGrettaFlow("api");
   showModal("authModal", false);
-  // Same Gretta window: Welcome back + API waiter explainer, then NEXT.
   showModal("grettaApiModal", true);
 }
 
 document.getElementById("authSkip")?.addEventListener("click", () => {
   sessionStorage.setItem(GRETTA_INTRO_KEY, "1");
+  setGrettaFlow("api");
   showModal("authModal", false);
   showModal("grettaApiModal", true);
 });
@@ -1561,13 +1582,14 @@ document.getElementById("authFacebook")?.addEventListener("click", () => {
 
 document.getElementById("grettaNextKeys")?.addEventListener("click", async () => {
   sessionStorage.setItem(GRETTA_SEEN_KEY, "1");
+  setGrettaFlow("keys");
   showModal("grettaApiModal", false);
-  // ONLY after NEXT does the API key list open.
   await maybeShowKeyWizard(true);
 });
 
 document.getElementById("grettaSkipApi")?.addEventListener("click", () => {
   sessionStorage.setItem(GRETTA_SEEN_KEY, "1");
+  setGrettaFlow("need");
   showModal("grettaApiModal", false);
   showGrettaNeedModal();
 });
@@ -1714,7 +1736,7 @@ document.getElementById("grettaNeedGo")?.addEventListener("click", async () => {
   const gate = assessMaterialSuitability(files, need);
   if (!gate.ok) {
     showModal("grettaNeedModal", false);
-    markGrettaOnboardDone();
+    setGrettaFlow("done");
     publishGrettaNote(gate.note, { blocked: true });
     const slotAsk = document.getElementById("grettaAsk");
     if (slotAsk) slotAsk.value = need;
@@ -1722,7 +1744,7 @@ document.getElementById("grettaNeedGo")?.addEventListener("click", async () => {
   }
   const data = await resolveGrettaNeed(need);
   showModal("grettaNeedModal", false);
-  markGrettaOnboardDone();
+  setGrettaFlow("done");
   publishGrettaNote(gate.note || data?.note || "lined up.", { blocked: false });
   const slotAsk = document.getElementById("grettaAsk");
   if (slotAsk) slotAsk.value = need;
@@ -1730,7 +1752,7 @@ document.getElementById("grettaNeedGo")?.addEventListener("click", async () => {
 
 document.getElementById("grettaNeedSkip")?.addEventListener("click", () => {
   showModal("grettaNeedModal", false);
-  markGrettaOnboardDone();
+  setGrettaFlow("done");
   publishGrettaNote("Thx for the API setup! Upload ur material so I can see if we can help.", { blocked: false });
 });
 
@@ -1882,7 +1904,10 @@ async function handleKeySave(fromModal) {
     }
     await loadProviders();
     updateSlotDots();
-    if (fromModal) showGrettaNeedModal();
+    if (fromModal) {
+      setGrettaFlow("need");
+      showGrettaNeedModal();
+    }
   } catch (e) {
     showError(e.message || String(e));
     if (msg) { msg.hidden = false; msg.textContent = e.message || String(e); }
@@ -1891,6 +1916,7 @@ async function handleKeySave(fromModal) {
 
 document.getElementById("keySkip")?.addEventListener("click", () => {
   document.getElementById("keyModal").hidden = true;
+  setGrettaFlow("need");
   showGrettaNeedModal();
 });
 document.getElementById("keySave")?.addEventListener("click", () => handleKeySave(true));
@@ -1994,8 +2020,10 @@ document.addEventListener("click", () => {
   renderThreadList();
   selectThread(activeId);
   fillModels(DEFAULT_MODELS);
-  // Launch: inventory → Argus → Gretta/auth → API keys (not the old key wizard first).
+  // Launch Gretta flow last so nothing else can steal the first modal.
   refreshLinkedApiSlots().then(() => loadProviders()).then(() => updateSlotDots());
+  // Clear bad v2 flag that forced the API key wizard on every window.
+  try { localStorage.removeItem("tokenish.gretta.onboard.v2"); } catch (_) {}
   startLaunchFlow();
   renderGrettaSlotStatus(loadGrettaPick());
   tickLiveWorldClock();
