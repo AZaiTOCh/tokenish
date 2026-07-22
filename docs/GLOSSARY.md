@@ -47,7 +47,7 @@ Parent index: [README](../README.md)
 | Term | Definition |
 |------|------------|
 | **Privacy Middleware** | Software between the core engine and apps/data that enforces privacy controls, masking, or encryption. |
-| **[Nemean](middleware/NEMEAN.md)** | TOKISH Privacy Middleware (taxonomy locked; full runtime landing later). Mode **C** Sovereign local default · Mode **A** Azure-direct optional · zero prompt proxy. |
+| **[Nemean](middleware/NEMEAN.md)** | TOKISH Privacy Middleware (taxonomy locked; full runtime landing later). Mode **C** Sovereign local default · Mode **A** Azure-direct optional · zero prompt proxy. Peer: [CloakPipe note](middleware/NEMEAN_CLOAKPIPE.md). |
 
 ---
 
@@ -56,7 +56,7 @@ Parent index: [README](../README.md)
 | Term | Definition |
 |------|------------|
 | **IVV operator** (*I viv*) | **I**nverse **V**ice **V**ersa — single turnkey on an ordered pair: reverse **and** component-wise negate. Example: IVV(2, 35) = (−35, −2). Inverse alone: e.g. toward (−2, 35) in the founder’s illustration of sign-flip on the first slot’s story; vice versa alone: (35, 2). **IVV** does both in one step → (−35, −2). |
-| **IVV symbol** | **⟡** (U+27E1 WHITE CONCAVE-SIDED DIAMOND) — infix/prefix coinage in tokenish docs: `(a, b) ⟡ ↦ (−b, −a)`. Chosen as a rare binary-op glyph; not reserved in tokenish for another meaning. |
+| **IVV symbol** | **`<>`** — ASCII glyph (avoids ⟡ / U+27E1, already common on calculators). Written `(a, b) <> ↦ (−b, −a)`. |
 
 ### IVV — prior art check (honest)
 

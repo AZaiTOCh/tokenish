@@ -10,7 +10,7 @@ Open-source **token use optimizer**. Every prompt and attachment runs through a 
 
 *evry drp cnts*
 
-**Glossary:** [docs/GLOSSARY.md](docs/GLOSSARY.md) — all tokenish coinages (OptComp, Engineship, IVV, …). New terms need founder approval before commit.
+**Glossary:** [docs/GLOSSARY.md](docs/GLOSSARY.md) — all tokenish coinages (OptComp, Engineship, IVV `<>`, …). New terms need founder approval before commit.
 
 ---
 
@@ -22,7 +22,7 @@ Open-source **token use optimizer**. Every prompt and attachment runs through a 
 | **Language** | Python 3.10+ |
 | **OptComp** | Tokopt cylinders — see [vTOPU](https://github.com/AZaiTOCh/turkishlyso/blob/main/docs/cylinders/CYLINDER_REGISTER.md) Register |
 | **Agentics** | [Agentic Registry](docs/agents/AGENTIC_REGISTRY.md) — [Engineship](docs/agents/ENGINESHIP.md) × [Status](docs/agents/STATUS.md) |
-| **Middleware** | **[Nemean](docs/middleware/NEMEAN.md)** Privacy Middleware (TOKISH) |
+| **Middleware** | **[Nemean](docs/middleware/NEMEAN.md)** Privacy Middleware (TOKISH) · peer [CloakPipe note](docs/middleware/NEMEAN_CLOAKPIPE.md) |
 | **Providers** | Gemini 3.5 Flash, OpenRouter, OpenAI, Anthropic, Groq, Grok, Perplexity (user keys) |
 | **Hive** | Live World Counter — engine-local + optional Cloudflare Worker (`packages/tokex-clock/`) |
 | **Version control** | GitHub — [`tknsh/tokenish`](https://github.com/tknsh/tokenish) |
@@ -208,6 +208,7 @@ Listed **newest → oldest**. Changes use **`1)`, `2)`, `3)`** format. Detail + 
 | F4 | Full Clop-class still encoders (pngquant/gifsicle/…) | ffmpeg path stable on Windows/macOS/Linux | Depending on Clop.app |
 | F5 | Latent index (VAE/CLIP+PQ) for retrieve | Memtrove/local index design approved | Sending float latents as chat vision payload |
 | F6 | Auditor-grade Live World Counter | Immutable ledgers + anti-double-count policy | Datacenter-deferral marketing claims |
+| F7 | Nemean full-force runtime (privacy mask/vault) | Follow [NEMEAN_CLOAKPIPE](docs/middleware/NEMEAN_CLOAKPIPE.md); Mode A stays Azure-direct | Scoring PII masks as OptComp TOKEX; TOKISH cloud prompt proxy |
 
 ---
 
@@ -215,7 +216,10 @@ Listed **newest → oldest**. Changes use **`1)`, `2)`, `3)`** format. Detail + 
 
 | Doc | Path |
 |-----|------|
-| [GLOSSARY](docs/GLOSSARY.md) | Coinages — Engineship, Status, vTOPU, IVV (⟡), … |
+| [GLOSSARY](docs/GLOSSARY.md) | Coinages — Engineship, Status, vTOPU, IVV (`<>`), … |
+| [Nemean](docs/middleware/NEMEAN.md) | TOKISH Privacy Middleware |
+| [Nemean × CloakPipe](docs/middleware/NEMEAN_CLOAKPIPE.md) | Peer note — Nemean substrate candidate (not a cylinder) |
+| [Middleware](docs/middleware/README.md) | Privacy Middleware index |
 | [Agentic Registry](docs/agents/AGENTIC_REGISTRY.md) | Engineship × Status roster for agentics |
 | [Engineship](docs/agents/ENGINESHIP.md) | Agent vs Resgent |
 | [Status](docs/agents/STATUS.md) | Plug-in · Reserve · Resident |

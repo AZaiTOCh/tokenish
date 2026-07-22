@@ -2,7 +2,8 @@
 
 **Class:** Privacy Middleware (not a subengine plug-in)  
 **Product surface:** TOKISH (= free tokenish + Nemean)  
-**Incepted (taxonomy):** v0.5.0
+**Incepted (taxonomy):** v0.5.0  
+**Runtime:** taxonomy locked; full-force build held — see peer notes before implementation
 
 ## Definition
 
@@ -24,3 +25,11 @@ TOKISH is free tokenish plus Nemean data privacy on your device — keep AI full
 ## Relationship to engine menu
 
 Under **engine → middleware**, Nemean is the first Privacy Middleware entry. Resgents and cylinders remain separate native classes.
+
+## Peer notes (build guidance)
+
+| Peer | Doc | Role for Nemean |
+|------|-----|-----------------|
+| [CloakPipe](https://github.com/rohansx/cloakpipe) | [NEMEAN_CLOAKPIPE.md](NEMEAN_CLOAKPIPE.md) | High-fit MIT privacy substrate (detect/mask/vault/unmask). **Not** a vTOPU cylinder. Local/on-device only — preserve Mode A “no TOKISH prompt proxy.” |
+
+When Nemean runtime ships full-force, start from the CloakPipe peer note: prefer `cloakpipe-core`-class logic or a localhost sidecar; do not vendor CloakPipe Cloud (BUSL); do not score privacy masking as OptComp TOKEX savings.

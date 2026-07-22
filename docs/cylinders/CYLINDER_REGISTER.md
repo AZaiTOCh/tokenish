@@ -1,8 +1,8 @@
 # vTOPU Register (OptComp)
 
-**[vTOPU](https://github.com/AZaiTOCh/turkishlyso/blob/main/docs/cylinders/CYLINDER_REGISTER.md)** = [Virtual](https://www.ibm.com/docs/en/power8/9080-MHE?topic=processors-virtual) [Token Optimization](https://developer.ibm.com/articles/awb-token-optimization-backbone-of-effective-prompt-engineering/) [Processing Unit](https://medium.com/@ramu.mangalarapu1622/the-story-of-processing-units-understanding-the-brains-behind-modern-machines-39ebbdc83578).
+**[vToPU](https://github.com/AZaiTOCh/turkishlyso/blob/main/docs/cylinders/CYLINDER_REGISTER.md)** = [Virtual](https://www.ibm.com/docs/en/power8/9080-MHE?topic=processors-virtual) [Token Optimization](https://developer.ibm.com/articles/awb-token-optimization-backbone-of-effective-prompt-engineering/) [Processing Unit](https://medium.com/@ramu.mangalarapu1622/the-story-of-processing-units-understanding-the-brains-behind-modern-machines-39ebbdc83578).
 
-A **tokopt cylinder** is one working stage (virtual core) inside **OptComp** / **[vTOPU](https://github.com/AZaiTOCh/turkishlyso/blob/main/docs/cylinders/CYLINDER_REGISTER.md)**.
+A **tokopt cylinder** is one working stage (virtual core) inside **OptComp** / **[vToPU](https://github.com/AZaiTOCh/turkishlyso/blob/main/docs/cylinders/CYLINDER_REGISTER.md)**.
 
 | # | Cylinders ([virtual cores](https://blog.coolicehost.com/what-is-virtual-core-and-how-does-it-differ-from-physical-core/)) | Type | Status | Since |
 |---|----------|------|--------|-------|
@@ -30,3 +30,4 @@ A **tokopt cylinder** is one working stage (virtual core) inside **OptComp** / *
 | 2 | [Latents](PARKED_LATENTS.md) | parked |
 | 3 | MicrOpt / UltraOpt / AtoOpt (whitespace·font atomism) | assess only — see peer notes |
 | 4 | OKF (Google Open Knowledge Format) | park — knowledge catalog, not TOKEX compressor |
+| 5 | [CloakPipe](https://github.com/rohansx/cloakpipe) (PII mask / vault) | **rejected as cylinder** — privacy middleware peer for [Nemean](../middleware/NEMEAN.md); see [NEMEAN_CLOAKPIPE](../middleware/NEMEAN_CLOAKPIPE.md) |
