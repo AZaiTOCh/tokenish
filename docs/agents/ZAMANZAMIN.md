@@ -1,6 +1,6 @@
-# ZamanZamin (زمان زمین) translates to "Time and Earth" in Persian (Live World Counter client)
+# ZamanZamin (Live World Counter client)
 
-**Brand:** ZamanZamin · **legacy code id:** `tokex_clock`
+**Brand:** ZamanZamin  (زمان زمین translates to "Time and Earth" in Persian) · **legacy code id:** `tokex_clock`
 
 **Role:** Opt-in sync/fetch client for the global TOKEX hive panel.
 
