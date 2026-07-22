@@ -4,9 +4,11 @@
 
 Open-source **token use optimizer**. Every prompt and attachment runs through a **split-execution / tokopt (OptComp)** pipeline, then dispatches to the model you select.
 
-**tokenish** is [Pareto Effcient](https://www.google.com/search?q=pareto+efficient&rlz=1C1CHBD_enCA1170CA1170&oq=pareto+efficient&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTIHCAEQABiABDIHCAIQABiABDIHCAMQABiABDIHCAQQABiABDIHCAUQABiABDIHCAYQABiABDIHCAcQABiABDIHCAgQABiABDIHCAkQABiABNIBCDIzNjdqMGo3qAIAsAIA&sourceid=chrome&source=chrome.ob&ie=UTF-8) in its universal causes vs effects vs functions vs outcomes - [Jevons Paradox](https://www.google.com/search?q=Jevons+Paradox&rlz=1C1CHBD_enCA1170CA1170&oq=Jevons+Paradox&gs_lcrp=EgZjaHJvbWUqCAgAEEUYJxg7MggIABBFGCcYOzIMCAEQABhDGIAEGIoFMgcIAhAAGIAEMgcIAxAAGIAEMgwIBBAAGEMYgAQYigUyBwgFEAAYgAQyDAgGEAAYQxiABBiKBTIHCAcQABiABDIHCAgQABiABDIHCAkQABiABNIBCDUyOTRqMGo3qAIAsAIA&sourceid=chrome&source=chrome.ob&ie=UTF-8) nothwithstanding. tokenish UI/interface is 'egoless' (minimalist/utilitarian motif respecting user's ease of navigation and mouse mileage)
+**tokenish** is [Pareto Effcient](https://www.google.com/search?q=pareto+efficient&rlz=1C1CHBD_enCA1170CA1170&oq=pareto+efficient&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTIHCAEQABiABDIHCAIQABiABDIHCAMQABiABDIHCAQQABiABDIHCAUQABiABDIHCAYQABiABDIHCAcQABiABDIHCAgQABiABDIHCAkQABiABNIBCDIzNjdqMGo3qAIAsAIA&sourceid=chrome&source=chrome.ob&ie=UTF-8) in its universal causes vs effects vs functions vs outcomes - [Jevons Paradox](https://www.google.com/search?q=Jevons+Paradox&rlz=1C1CHBD_enCA1170CA1170&oq=Jevons+Paradox&gs_lcrp=EgZjaHJvbWUqCAgAEEUYJxg7MggIABBFGCcYOzIMCAEQABhDGIAEGIoFMgcIAhAAGIAEMgcIAxAAGIAEMgwIBBAAGEMYgAQYigUyBwgFEAAYgAQyDAgGEAAYQxiABBiKBTIHCAcQABiABDIHCAgQABiABDIHCAkQABiABNIBCDUyOTRqMGo3qAIAsAIA&sourceid=chrome&source=chrome.ob&ie=UTF-8) nothwithstanding. 
 
-**TOKISH** (paid surface, inducted v0.5.0) = free tokenish + **[Nemean](docs/middleware/NEMEAN.md) Privacy Middleware**. Free tokenish stays OptComp-only.
+**tokenish** UI/interface is 'egoless' (minimalist/utilitarian motif respecting user's ease of navigation and mouse mileage)
+
+**tokenish** Enterprise Subscribtion upgrade is called **TOKISH** (paid surface, inducted in v0.5.0). **TOKISH** = freemium **tokenish** + **[Nemean](docs/middleware/NEMEAN.md) Privacy Middleware**. Free tokenish stays OptComp-only.
 
 *evry drp cnts*
 
