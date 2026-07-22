@@ -16,7 +16,7 @@ Parent index: [README](../README.md)
 | **TOKISH** | Paid/Enterprise version of **tokenish** (**TOKISH** = free **tokenish** + [Nemean](middleware/NEMEAN.md) Privacy Middleware). |
 | **TOKEX** | Token Expenditure — before vs after; savings = max(0, before − after). **Measured** only from sealed runs / Agatha — never invented. |
 | **Tokopt** | Token Optimization. |
-| **OptComp** | Optimization / Compression engine — the cylinder pipeline that can reduce TOKEX. |
+| **OptComp** | Optimization AND/OR Compression optionalized engine — the cylinder pipeline that can reduce TOKEX. |
 | **Tokopt cylinder** | One working stage (virtual core) inside OptComp. |
 | **[vTOPU](cylinders/CYLINDER_REGISTER.md)** | **V**irtual **T**oken **O**ptimization **P**rocessing **U**nit — register of OptComp cylinders / virtual cores. |
 | **virtual core** | Brand-facing name for a cylinder row in the vTOPU register. |
