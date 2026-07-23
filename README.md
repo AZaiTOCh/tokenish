@@ -1,6 +1,6 @@
 # tokenish
 
-**Version:** 0.5.0 · **Runtime:** local FastAPI daemon + chat UI · **GitHub:** [`tknsh/tokenish`](https://github.com/tknsh/tokenish)
+**Version:** 0.5.0 · **Runtime:** local FastAPI daemon + chat UI 
 
 **tokenish** is an Open-source **token use optimizer**. Every prompt and attachment runs through a staged **split-execution / [tokopt (OptComp)](https://github.com/AZaiTOCh/turkishlyso/blob/main/docs/GLOSSARY.md)** pipeline and virtual Processing Unit (vCPU), then dispatches to the model or the daisy-chaineded LLMs that users select.
 
